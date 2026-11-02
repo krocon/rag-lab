@@ -20,18 +20,21 @@ import { SystemStatus } from './system-status';
         <h2 id="getting-started-heading">Getting started</h2>
         <ol class="steps">
           <li>
-            <strong>Create a knowledge base</strong> and upload Markdown or text files.
-            <span class="rl-badge rl-badge--warn"><span aria-hidden="true">◷</span> Planned</span>
+            <strong>Create a knowledge base</strong> in
+            <a routerLink="/knowledge-bases">Knowledge Bases</a> and upload Markdown or text files;
+            inspect their status, full text and chunks.
+            <span class="rl-badge rl-badge--ok"><span aria-hidden="true">✓</span> Available</span>
           </li>
           <li>
             <strong>Inspect retrieval</strong> in the
-            <a routerLink="/playground">Retrieval Playground</a>: hits, scores and chunks.
-            <span class="rl-badge rl-badge--warn"><span aria-hidden="true">◷</span> Planned</span>
+            <a routerLink="/playground">Retrieval Playground</a>: hits, scores, chunks and the
+            prompt the chat would send.
+            <span class="rl-badge rl-badge--ok"><span aria-hidden="true">✓</span> Available</span>
           </li>
           <li>
             <strong>Ask questions</strong> in the <a routerLink="/chat">Chat</a> and verify every
             answer against its sources.
-            <span class="rl-badge rl-badge--warn"><span aria-hidden="true">◷</span> Planned</span>
+            <span class="rl-badge rl-badge--ok"><span aria-hidden="true">✓</span> Available</span>
           </li>
           <li>
             <strong>Check the configuration</strong> of providers and models in

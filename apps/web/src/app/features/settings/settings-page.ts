@@ -57,6 +57,8 @@ import { ThemeService, type ThemePreference } from '../../core/theme/theme.servi
           </dd>
           <dt>Default top-K</dt>
           <dd>{{ config.retrieval.defaultTopK }}</dd>
+          <dt>Max. query length</dt>
+          <dd>{{ config.retrieval.maxQueryChars }} characters</dd>
           <dt>Chunk size / overlap</dt>
           <dd>{{ config.chunking.targetSize }} / {{ config.chunking.overlap }} characters</dd>
           <dt>API version</dt>

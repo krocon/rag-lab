@@ -1,0 +1,127 @@
+{
+  "options": {
+    "targetSize": 300,
+    "overlap": 60,
+    "format": "markdown"
+  },
+  "chunks": [
+    {
+      "chunkIndex": 0,
+      "content": "---\ntitle: RAGLab sample\n# a YAML comment, not a heading\n---\n\nRAGLab is a self-hosted workbench for retrieval-augmented generation. This preamble has no heading.",
+      "startOffset": 0,
+      "endOffset": 161,
+      "charCount": 161,
+      "tokenEstimate": 41,
+      "headingPath": [],
+      "overlapChars": 0
+    },
+    {
+      "chunkIndex": 1,
+      "content": "# Getting started\n\n## Installation\n\n### Docker\n\nStart the database with Docker Compose. The container exposes PostgreSQL on port 5432 and ships with pgvector preinstalled. Wait until the health check reports \"healthy\" before running migrations!",
+      "startOffset": 163,
+      "endOffset": 407,
+      "charCount": 244,
+      "tokenEstimate": 61,
+      "headingPath": [
+        "Getting started",
+        "Installation",
+        "Docker"
+      ],
+      "overlapChars": 0
+    },
+    {
+      "chunkIndex": 2,
+      "content": "health check reports \"healthy\" before running migrations!\n\n```bash\n# start PostgreSQL with pgvector\ndocker compose up -d postgres\npnpm db:migrate\n```",
+      "startOffset": 350,
+      "endOffset": 499,
+      "charCount": 149,
+      "tokenEstimate": 38,
+      "headingPath": [
+        "Getting started",
+        "Installation",
+        "Docker"
+      ],
+      "overlapChars": 59
+    },
+    {
+      "chunkIndex": 3,
+      "content": "#### Troubleshooting\n\nIf the port is taken, change it in `.env`. Does the container restart in a loop? Check the logs with `docker compose logs postgres`.",
+      "startOffset": 501,
+      "endOffset": 655,
+      "charCount": 154,
+      "tokenEstimate": 39,
+      "headingPath": [
+        "Getting started",
+        "Installation",
+        "Docker",
+        "Troubleshooting"
+      ],
+      "overlapChars": 0
+    },
+    {
+      "chunkIndex": 4,
+      "content": "## Configuration\n\n- `CHUNK_SIZE` – maximum chunk length in characters\n- `CHUNK_OVERLAP` – characters repeated from the previous chunk\n- `EMBEDDING_MODEL` – the model used for embeddings",
+      "startOffset": 657,
+      "endOffset": 842,
+      "charCount": 185,
+      "tokenEstimate": 47,
+      "headingPath": [
+        "Getting started",
+        "Configuration"
+      ],
+      "overlapChars": 0
+    },
+    {
+      "chunkIndex": 5,
+      "content": "# Concepts\n\n### Chunking (level jump)\n\nChunks are cut at paragraph ends first, then at sentence ends, line ends and word ends. Umlauts like Größe, Übermaß and naïve stay intact, and so do emoji like 👩‍💻 or 😀.",
+      "startOffset": 844,
+      "endOffset": 1055,
+      "charCount": 211,
+      "tokenEstimate": 53,
+      "headingPath": [
+        "Concepts",
+        "Chunking (level jump)"
+      ],
+      "overlapChars": 0
+    },
+    {
+      "chunkIndex": 6,
+      "content": "and naïve stay intact, and so do emoji like 👩‍💻 or 😀. A very long token such as https://example.com/a/really/long/path/that/keeps/going/and/going/without/any/whitespace/at/all/until/it/finally/ends/here/index.html is cut hard only if it is longer than the target size.",
+      "startOffset": 999,
+      "endOffset": 1270,
+      "charCount": 271,
+      "tokenEstimate": 68,
+      "headingPath": [
+        "Concepts",
+        "Chunking (level jump)"
+      ],
+      "overlapChars": 57
+    },
+    {
+      "chunkIndex": 7,
+      "content": "is cut hard only if it is longer than the target size.\n\nOverlap repeats the end of the previous chunk. It starts at a sentence start when possible, otherwise at a word start, and never in the middle of a word.",
+      "startOffset": 1216,
+      "endOffset": 1425,
+      "charCount": 209,
+      "tokenEstimate": 53,
+      "headingPath": [
+        "Concepts",
+        "Chunking (level jump)"
+      ],
+      "overlapChars": 56
+    },
+    {
+      "chunkIndex": 8,
+      "content": "# FAQ\n\n## Why characters instead of tokens?\n\nCharacters are deterministic and provider-neutral. Token counts differ between models, so `tokenEstimate` is informative only.",
+      "startOffset": 1427,
+      "endOffset": 1598,
+      "charCount": 171,
+      "tokenEstimate": 43,
+      "headingPath": [
+        "FAQ",
+        "Why characters instead of tokens?"
+      ],
+      "overlapChars": 0
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 # RAGLab – Datenmodell
 
-Stand: 2026-11-02 · **Zielmodell.** Implementiert ist bisher nur Migration `0000_enable_pgvector`;
-die Tabellen unten werden mit [prompts/003-database-domain-model.md](../prompts/003-database-domain-model.md)
-angelegt. Abweichungen bei der Umsetzung sind hier nachzutragen.
+Stand: 2026-11-02 · **Implementiert** mit
+[prompts/done/003-database-domain-model.md](../prompts/done/003-database-domain-model.md)
+(Migrationen `0000_enable_pgvector`, `0001_domain_model`). Schema-Quelle:
+[`apps/api/src/db/schema.ts`](../apps/api/src/db/schema.ts). Umsetzungsdetails und Abweichungen
+stehen im Abschnitt [Umsetzung](#umsetzung).
 
 ## Überblick
 
@@ -54,10 +56,17 @@ Re-Indexierung erforderlich).
 | `status`                   | `document_status` NOT NULL      | Enum: `pending`, `processing`, `ready`, `failed`                        |
 | `error_message`            | `text` NULL                     | nur bei `failed`, für Benutzer verständlich, ohne Stacktrace            |
 | `chunk_count`              | `integer` NOT NULL DEFAULT 0    |                                                                         |
-| `metadata`                 | `jsonb` NOT NULL DEFAULT `'{}'` | z. B. Titel aus erster Überschrift                                      |
+| `metadata`                 | `jsonb` NOT NULL DEFAULT `'{}'` | `title` aus erster Markdown-Überschrift (004), sonst `{}`               |
 | `created_at`, `updated_at` | `timestamptz` NOT NULL          |                                                                         |
 
-Statusübergänge: `pending → processing → ready | failed`; `failed → processing` bei erneutem Versuch.
+Statusübergänge: `pending → processing → ready | failed`; `failed → processing` bei erneutem Versuch;
+`failed | ready → pending` per Reindex (006, `ready` nur mit fehlenden Embeddings).
+
+Umsetzung der Statusübergänge (Prompt 004, `documents.repository.ts`): `claimForProcessing` setzt
+atomar `processing` (`UPDATE … WHERE status IN ('pending','failed') RETURNING …`), `markReady` und
+`markFailed` greifen nur, solange das Dokument `processing` ist (gelöschte Dokumente werden still
+übergangen). Beim Start setzt die Recovery alle `processing`-Dokumente auf `failed` mit Hinweis
+(siehe [architecture.md §4.1](architecture.md#41-indexierung-upload--durchsuchbar)).
 
 ### `chunks`
 
@@ -70,7 +79,7 @@ Statusübergänge: `pending → processing → ready | failed`; `failed → proc
 | `content`                    | `text` NOT NULL                  | nicht leer (CHECK `length(trim(content)) > 0`)                                  |
 | `start_offset`, `end_offset` | `integer` NOT NULL               | Zeichenpositionen im normalisierten Dokumenttext                                |
 | `char_count`                 | `integer` NOT NULL               |                                                                                 |
-| `token_estimate`             | `integer` NULL                   | grobe Schätzung, nur informativ                                                 |
+| `token_estimate`             | `integer` NULL                   | grobe Schätzung (`ceil(char_count / 4)`), nur informativ                        |
 | `heading_path`               | `text[]` NOT NULL DEFAULT `'{}'` | z. B. `{"Installation","Docker"}` (Markdown)                                    |
 | `metadata`                   | `jsonb` NOT NULL DEFAULT `'{}'`  | erweiterbar (z. B. Seitenzahl bei späteren Formaten)                            |
 | `embedding`                  | `vector(768)` NULL               | NULL bis eingebettet; Dimension = `EMBEDDING_DIMENSIONS`                        |
@@ -83,6 +92,79 @@ Indizes:
   Operator `<=>` (Cosinus-Distanz)
 - `documents (collection_id, status)`
 
+## Umsetzung
+
+| Migration                  | Art                       | Inhalt                                                                                                          |
+| -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `0000_enable_pgvector.sql` | Custom (Prompt 001)       | `CREATE EXTENSION IF NOT EXISTS vector`                                                                         |
+| `0001_domain_model.sql`    | generiert (`db:generate`) | Enum `document_status`, Tabellen, FKs (`ON DELETE CASCADE`), Unique-/CHECK-Constraints, alle Indizes inkl. HNSW |
+
+Index- und Constraint-Namen (stabil, werden im Code referenziert):
+
+| Name                                            | Art                                        |
+| ----------------------------------------------- | ------------------------------------------ |
+| `collections_name_lower_unique`                 | Unique-Index auf `lower(name)`             |
+| `documents_collection_id_content_sha256_unique` | Unique `(collection_id, content_sha256)`   |
+| `documents_collection_id_status_idx`            | Index `(collection_id, status)`            |
+| `chunks_document_id_chunk_index_unique`         | Unique `(document_id, chunk_index)`        |
+| `chunks_collection_id_idx`                      | Index `(collection_id)`                    |
+| `chunks_embedding_hnsw_idx`                     | `USING hnsw (embedding vector_cosine_ops)` |
+| `chunks_content_not_blank`                      | CHECK `length(trim(content)) > 0`          |
+
+**Abweichungen und Ergänzungen gegenüber dem Zielmodell bzw. Prompt 003:**
+
+- **Keine Custom-Migration `0002`:** Drizzle 0.45 / drizzle-kit 0.31 erzeugen HNSW-Index mit
+  Operator-Klasse (`index().using('hnsw', col.op('vector_cosine_ops'))`), Ausdrucks-Unique-Index
+  (``uniqueIndex().on(sql`lower(name)`)``), CHECK-Constraints (`check()`) und den Default
+  `uuidv7()` (``default(sql`uuidv7()`)``) selbst. Alles liegt daher in `schema.ts` und in der
+  generierten Migration `0001`; Schema-Snapshot und Datenbank bleiben deckungsgleich, und ein
+  späteres `db:generate` würde den Index nicht verlieren.
+- **Kein separater Index `documents (collection_id)`:** Der Index `(collection_id, status)` und der
+  Unique-Index `(collection_id, content_sha256)` beginnen mit `collection_id` und decken Filter und
+  FK-Cascade ab. Ebenso deckt `chunks (document_id, chunk_index)` die FK-Cascade von `documents` ab.
+- **Zusätzliche CHECK-Constraints** (defensiv, Werte aus dem Zielmodell): `collections_name_length`
+  (1–120 Zeichen), `collections_description_length` (≤ 2.000), `collections_embedding_dimensions_positive`,
+  `chunks_chunk_index_non_negative`, `chunks_offsets_valid` (`0 ≤ start_offset ≤ end_offset`).
+- `documents.status` hat den Default `pending`.
+- `updated_at` wird von Drizzle bei jedem `UPDATE` über das ORM gesetzt (`$onUpdate`), nicht per
+  Trigger. Direkte SQL-Updates müssen `updated_at` selbst setzen.
+- Die Spaltendimension steht als Konstante `EMBEDDING_COLUMN_DIMENSIONS = 768` in `schema.ts`; ein
+  Unit-Test stellt sicher, dass sie zu `EMBEDDING_DIMENSIONS` in `.env.example` passt.
+- **Ingestion (004), keine Schemaänderung:** `filename` ist der bereinigte Anzeigename (max. 255
+  Zeichen), `mime_type` wird aus der Endung abgeleitet, `size_bytes` ist die Größe der Originaldatei,
+  `content`/`content_sha256` beziehen sich auf den normalisierten Text. Mehrere Dateien einer Anfrage
+  werden in einer `INSERT`-Anweisung gespeichert; der Unique-Index
+  `documents_collection_id_content_sha256_unique` sichert die Duplikaterkennung auch bei parallelen
+  Uploads ab (→ `409 DUPLICATE_DOCUMENT`). `metadata` ist in Drizzle als `DocumentMetadataFields`
+  (`@raglab/shared`) typisiert.
+- **Chunking (005), keine Schemaänderung:** Das Modul `chunking` besitzt `chunks`
+  (`chunks.repository.ts`) und ersetzt die Chunks eines Dokuments in einer Transaktion. Nutzung
+  der Spalten:
+  - `content` = `documents.content.slice(start_offset, end_offset)`; Offsets in UTF-16-Code-Units
+    (JavaScript-String-Offsets), getrimmt – ein Chunk beginnt und endet nie mit Whitespace.
+  - `char_count` = Länge von `content` in UTF-16-Code-Units; `token_estimate` = `ceil(char_count / 4)`,
+    nur informativ (kein Modell-Tokenizer, gesetzt für jeden Chunk).
+  - `heading_path` = Texte der umschließenden ATX-Überschriften, äußerste zuerst (z. B.
+    `{"Getting started","Installation","Docker"}`); `{}` für Text vor der ersten Überschrift und
+    für `.txt`.
+  - `metadata` = `{ "overlapChars": n }`: Länge des Anfangs, der aus dem vorherigen Chunk
+    wiederholt wird (`0` = kein Overlap). Weitere Schlüssel bleiben späteren Formaten vorbehalten.
+  - `embedding` bleibt bis zum Embedding-Schritt `NULL` (seit 006, siehe unten);
+    `documents.chunk_count` wird beim Übergang nach `ready` gesetzt und entspricht der Zahl der Zeilen.
+- **Embeddings (006), keine Schemaänderung:** Der Embedding-Schritt schreibt `chunks.embedding`
+  für alle Chunks eines Dokuments in **einer Transaktion** (`UPDATE chunks … FROM (VALUES …)`,
+  Vektoren als pgvector-Textliteral `[x,y,…]`, unverändert wie vom Provider geliefert, nicht
+  normalisiert). `ready` heißt seither: jeder Chunk hat einen Vektor der Länge
+  `EMBEDDING_COLUMN_DIMENSIONS`. Vor dem Schreiben werden Provider/Modell/Dimension gegen
+  `collections.embedding_provider/model/dimensions` geprüft; bei Abweichung bleibt `embedding`
+  `NULL` und das Dokument wird `failed` (`EMBEDDING_MODEL_MISMATCH`). Reindex
+  (`POST /api/documents/:id/reindex`) setzt `failed`-Dokumente bzw. `ready`-Dokumente mit
+  `embedding IS NULL`-Chunks per bedingtem `UPDATE` zurück auf `pending`; Statusübergänge damit:
+  `failed → pending`, `ready → pending` (nur mit fehlenden Embeddings).
+- Die Collection-Liste zählt `documentCount`, `readyDocumentCount` und `chunkCount` per korrelierter
+  Unterabfrage (nutzt die Indizes oben); `chunkCount` zählt tatsächliche Zeilen in `chunks`, nicht
+  die Summe von `documents.chunk_count`.
+
 ## Embedding-Dimension
 
 Die Dimension steht an drei Stellen und muss übereinstimmen:
@@ -91,8 +173,10 @@ Die Dimension steht an drei Stellen und muss übereinstimmen:
 2. die Spalte `chunks.embedding vector(n)` (Migration),
 3. die tatsächliche Ausgabe des Modells.
 
-Die API liest beim Readiness-Check die Spaltendimension aus dem Katalog
-(`format_type(atttypid, atttypmod)` bzw. `atttypmod`) und vergleicht sie mit der Konfiguration.
+Die API liest beim Readiness-Check (`GET /api/health/ready`, `checks.schema`) die Spaltendimension
+aus dem Katalog (`pg_attribute.atttypmod` von `chunks.embedding`) und vergleicht sie mit der
+Konfiguration. Abweichung oder fehlende Spalte → `checks.schema.status = 'down'` mit
+`expected`/`actual` und Hinweis, Gesamtstatus `not_ready` (`503`).
 Ein Modellwechsel mit anderer Dimension erfordert eine neue Migration (Spalte ändern, Index neu
 bauen, Chunks neu einbetten). Über 2.000 Dimensionen: `halfvec` (HNSW bis 4.000) – bewusst nicht
 im MVP.
@@ -104,6 +188,18 @@ Gespeichert und abgefragt wird **Cosinus-Distanz** (`embedding <=> query`, Berei
 
 - `distance` = Rohwert des Operators,
 - `score` = `1 - distance` (Cosinus-Ähnlichkeit, −1…1, größer ist ähnlicher).
+
+**Umsetzung (007), keine Schemaänderung:** Operator `<=>`, Opclass `vector_cosine_ops` und
+`toScore` sind einmal in `apps/api/src/modules/retrieval/similarity.ts` definiert (`schema.ts`
+nutzt die Opclass-Konstante). Die Suche filtert in **einer** Abfrage auf `chunks.collection_id`,
+`chunks.embedding IS NOT NULL` und `documents.status = 'ready'` (Join über `document_id`) vor
+`ORDER BY embedding <=> $q LIMIT topK`. In derselben Transaktion gelten
+`hnsw.iterative_scan = relaxed_order` und `hnsw.ef_search = max(40, topK)` (per
+`set_config(…, true)` ≙ `SET LOCAL`), damit der Collection-Filter nach dem HNSW-Scan nicht zu
+wenige Treffer übrig lässt; weil `relaxed_order` leicht ungeordnet liefern kann, sortiert die
+Anwendung danach stabil nach `distance`. Nutzt der Planer statt HNSW den Index
+`chunks_collection_id_idx` mit Sortierung (kleine Collections), ist das Ergebnis exakt. Details:
+[architecture.md §4.3](architecture.md#43-umsetzung-retrieval-prompt-007).
 
 ## Erweiterungen (nicht MVP)
 

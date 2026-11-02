@@ -2,7 +2,9 @@
 
 ## Supported versions
 
-RAGLab is in early development (0.x). Only the latest state of the `main` branch receives fixes.
+RAGLab is in early development (0.x). Fixes go into the `main` branch and the next release; only
+the latest release (see [CHANGELOG.md](CHANGELOG.md)) and `main` are supported. Release images are
+published to the GitHub Container Registry by the release workflow (docs/release.md).
 
 ## Reporting a vulnerability
 
@@ -15,13 +17,23 @@ expect an initial response within 7 days.
 
 ## Security model and known limitations
 
-- RAGLab is built for **local, single-user use**. There is no authentication or authorization yet.
-  Do not expose the API, web app or database to untrusted networks. By default all ports bind to
-  `127.0.0.1`.
-- **Imported documents are untrusted.** Their content is passed to language models as clearly
-  delimited data, and the system prompt instructs the model to ignore instructions inside sources.
-  This reduces but **does not eliminate prompt-injection risk**: a crafted document can still
-  influence answers. Always verify answers against the cited sources.
-- Language model output is untrusted and rendered without executing HTML or scripts.
-- Secrets are configured via environment variables only; `.env` is git-ignored. The example
-  credentials in `.env.example` are for local development and must be changed for any other use.
+The threat model, all hardening measures, operating recommendations and residual risks are
+documented (in German) in [docs/security.md](docs/security.md). In short:
+
+- RAGLab is built for **local, single-user use** and has **no authentication or authorization**.
+  By default all ports bind to `127.0.0.1`. **Never expose RAGLab to a network without a reverse
+  proxy that enforces authentication**; the API logs a warning when it listens on a non-local
+  address without `NETWORK_ACCESS_PROTECTED=true`.
+- The API rejects cross-site requests from browsers (CORS allowlist, Origin check for
+  state-changing requests, Host allowlist against DNS rebinding), sets security headers, applies
+  rate limits and strict request validation. None of this replaces authentication: any local
+  process can still call the API.
+- **Imported documents are untrusted.** Their content is passed to language models as delimited
+  data, delimiter look-alikes are neutralised, the model has no tools, and the system prompt tells
+  it to ignore instructions inside sources. This reduces but **does not prevent prompt
+  injection**: a crafted document can still influence answers. Always verify answers against the
+  cited sources.
+- Language model output and document content are rendered as text only (no HTML, no Markdown).
+- Secrets are configured via environment variables only; `.env` is git-ignored and credentials are
+  redacted from logs. The example credentials in `.env.example` are for local development and
+  must be changed for any other use.

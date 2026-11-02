@@ -1,5 +1,10 @@
 # RAGLab – Bestandsaufnahme (Schritt 1)
 
+> **Historisches Dokument.** Diese Bestandsaufnahme beschreibt den Stand **vor** dem ersten Code
+> (2026-11-01) und wird bewusst nicht fortgeschrieben. Versionen, Werkzeugbefunde und offene
+> Entscheidungen können überholt sein. Aktueller Stand: [architecture.md §9](architecture.md#9-implementierungsstand),
+> [README](../README.md) und [CHANGELOG](../CHANGELOG.md).
+
 Stand: 2026-11-01 · Grundlage: `prompts/done/001-RAGLab-Initialprojekt-Prompt.md`, Schritt 1
 
 Dieses Dokument hält fest, was im Repository vorhanden ist, welche Werkzeuge verfügbar sind und welche

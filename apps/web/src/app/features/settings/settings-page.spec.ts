@@ -10,8 +10,13 @@ const info: SystemInfoResponse = {
   nodeVersion: 'v24.21.0',
   embedding: { provider: 'ollama', model: 'example-embed', dimensions: 768 },
   chat: { provider: 'ollama', model: 'example-chat' },
-  retrieval: { defaultTopK: 8 },
+  retrieval: { defaultTopK: 8, maxQueryChars: 2000 },
   chunking: { targetSize: 1200, overlap: 200 },
+  upload: {
+    maxFileBytes: 5_242_880,
+    maxFiles: 20,
+    allowedExtensions: ['.md', '.markdown', '.txt'],
+  },
 };
 
 describe('SettingsPage', () => {

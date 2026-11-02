@@ -6,3 +6,5 @@ pnpm-lock.yaml
 apps/api/drizzle/meta
 prompts
 docs/00-bestandsaufnahme.md
+# Test fixtures are byte-exact inputs/expected outputs (golden tests)
+apps/api/test/fixtures

@@ -85,3 +85,14 @@ Kronberg); der Maintainer hat entschieden, sie beizubehalten (Bestandsaufnahme, 
   vor dem Commit geprüft; Custom-SQL (z. B. HNSW-Index) über `drizzle-kit generate --custom`.
 - Sprache: Code, API und öffentliche Repository-Dateien (README, CONTRIBUTING, …) auf Englisch;
   Architektur-Dokumentation und Arbeitsprompts auf Deutsch (Arbeitssprache des Maintainers).
+
+## Nachtrag (Prompt 015, 2026-11-02)
+
+- Container-Basis: `node:26.13.0-trixie-slim` (vorher `bookworm-slim`; Debian 13 ist das aktuelle
+  Stable-Release, PostgreSQL läuft bereits auf `pgvector/pgvector:0.8.7-pg18-trixie`) und
+  `nginxinc/nginx-unprivileged:1.30.6-alpine` (Stable-Linie, exakter Patch-Tag statt `1.30-alpine`).
+  Tags per Docker-Hub-API/`docker manifest inspect` geprüft; Updates über Dependabot.
+- pnpm bleibt `11.28.9` (`packageManager`); 11.28.10 ist verfügbar, ein Wechsel ist reine
+  Pflege und nicht Teil von 015.
+- Versionierung und Release: gemeinsame SemVer-Version aller Pakete, Skript statt Changesets –
+  Begründung in [release.md](../release.md) §1.

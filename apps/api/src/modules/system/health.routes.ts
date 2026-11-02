@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { LivenessResponse, ReadinessResponse } from '@raglab/shared';
-import type { DatabaseProbe } from '../../db/probe.js';
+import { isReady, type DatabaseProbe } from '../../db/probe.js';
 import { API_VERSION } from '../../version.js';
 
 const componentStatus = {
@@ -14,6 +14,20 @@ const componentStatus = {
   },
 } as const;
 
+const schemaStatus = {
+  type: 'object',
+  required: ['status', 'expected'],
+  properties: {
+    status: { type: 'string', enum: ['up', 'down'] },
+    expected: { type: 'integer', description: 'EMBEDDING_DIMENSIONS from the configuration' },
+    actual: {
+      type: ['integer', 'null'],
+      description: 'Dimension of the chunks.embedding column (null if missing)',
+    },
+    error: { type: 'string' },
+  },
+} as const;
+
 const readinessSchema = {
   type: 'object',
   required: ['status', 'checks', 'timestamp'],
@@ -21,8 +35,8 @@ const readinessSchema = {
     status: { type: 'string', enum: ['ready', 'not_ready'] },
     checks: {
       type: 'object',
-      required: ['database', 'pgvector'],
-      properties: { database: componentStatus, pgvector: componentStatus },
+      required: ['database', 'pgvector', 'schema'],
+      properties: { database: componentStatus, pgvector: componentStatus, schema: schemaStatus },
     },
     timestamp: { type: 'string', format: 'date-time' },
   },
@@ -67,13 +81,13 @@ export const healthRoutes: FastifyPluginAsync<{ probe: DatabaseProbe }> = async 
     {
       schema: {
         tags: ['system'],
-        summary: 'Readiness: database and pgvector are usable',
+        summary: 'Readiness: database, pgvector and schema (embedding dimension) are usable',
         response: { 200: readinessSchema, 503: readinessSchema },
       },
     },
     async (_request, reply) => {
       const checks = await probe.check();
-      const ready = checks.database.status === 'up' && checks.pgvector.status === 'up';
+      const ready = isReady(checks);
       if (!ready) {
         app.log.warn({ checks }, 'readiness check failed');
       }

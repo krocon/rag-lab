@@ -17,6 +17,7 @@ const ready: ReadinessResponse = {
   checks: {
     database: { status: 'up', latencyMs: 3 },
     pgvector: { status: 'up', version: '0.8.7' },
+    schema: { status: 'up', expected: 768, actual: 768 },
   },
   timestamp: '2026-11-02T08:00:00.000Z',
 };
@@ -66,6 +67,7 @@ describe('SystemStatus', () => {
       checks: {
         database: { status: 'down', error: 'connect ECONNREFUSED' },
         pgvector: { status: 'down', error: 'database unreachable' },
+        schema: { status: 'down', expected: 768, error: 'database unreachable' },
       },
       timestamp: ready.timestamp,
     };

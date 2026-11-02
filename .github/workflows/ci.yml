@@ -1,42 +1,69 @@
 name: CI
 
+# Runs on pushes to main, on pull requests, and as the first stage of the release workflow
+# (workflow_call from .github/workflows/release.yml).
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
+# Least privilege: the CI jobs only read the repository.
 permissions:
   contents: read
 
+# One run per pull request / branch; a new push to a pull request cancels the running checks.
+# Pushes to main and release runs are never cancelled.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Actions are pinned to major-version tags of their official publishers (actions/*, pnpm/*,
+# docker/*); Dependabot (.github/dependabot.yml) proposes updates. Decision: docs/release.md.
 jobs:
-  checks:
-    name: Lint, typecheck, test, build (Node ${{ matrix.node }})
+  quality:
+    name: Format, lint, typecheck
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [24, 26]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6 # version comes from "packageManager" in package.json
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
+          node-version: 26
+          cache: pnpm # caches the pnpm store, keyed by pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # The recursive scripts cover all workspace packages (apps/api, apps/web, apps/mcp,
+      # packages/shared) and the release/smoke scripts in scripts/.
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      # Relative links and #anchors in README, docs/ and the other Markdown files.
+      - run: pnpm docs:links
+
+  test:
+    name: Unit tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24, 26] # engines: ^24.15.0 || >=26.0.0 (ADR 0001)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # API, web, MCP server (incl. its stdio end-to-end test against a fake API) and scripts/.
       - run: pnpm test
-      - run: pnpm build
 
   integration:
-    name: Integration tests (PostgreSQL + pgvector)
+    name: Integration tests + evaluation smoke test (PostgreSQL + pgvector)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: pgvector/pgvector:0.8.7-pg18-trixie
@@ -52,6 +79,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # The integration tests never use this database itself: they derive raglab_test from it,
+      # create it (global setup) and empty its tables. See README → Development.
       DATABASE_URL: postgresql://raglab:raglab-ci@localhost:5432/raglab
     steps:
       - uses: actions/checkout@v7
@@ -63,11 +92,63 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
       - run: pnpm test:integration
+      # Runs the evaluation CLI end to end with the lexical baseline (no Ollama in CI). The quality
+      # of a real embedding model is not measured in CI (docs/evaluation.md).
+      - run: pnpm eval --baseline
+        env:
+          # Required by the configuration schema; the baseline does not call these models.
+          EMBEDDING_MODEL: nomic-embed-text
+          EMBEDDING_DIMENSIONS: '768'
+          CHAT_MODEL: llama3.2
 
-  docker:
-    name: Docker images build
+  build:
+    name: Build all packages
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - run: docker build -f infra/docker/api.Dockerfile -t raglab-api:ci .
-      - run: docker build -f infra/docker/web.Dockerfile -t raglab-web:ci .
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  docker:
+    name: Docker images + stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # Only for the smoke-test script (no dependencies needed).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Prepare .env from the example configuration
+        run: cp .env.example .env
+      - run: docker compose config -q
+      # Builds the api, web and mcp images (never pushed), starts postgres → migrate → api → web,
+      # checks health, headers, non-root users, upload → chat with SSE through nginx (fake Ollama)
+      # and the MCP server over stdio. See scripts/docker-smoke.mjs.
+      - run: node scripts/docker-smoke.mjs
+      - name: Image sizes
+        if: always()
+        run: docker image ls --filter 'reference=raglab-*'
+
+  audit:
+    name: Dependency audit (production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      # Fails on high and critical advisories in production dependencies. Moderate/low findings
+      # are reviewed by the maintainer instead of blocking every build (docs/security.md §8):
+      # they are frequently not reachable (e.g. build-time globbing with fixed patterns) and
+      # cannot always be fixed before upstream releases a patch.
+      - run: pnpm audit --prod --audit-level=high

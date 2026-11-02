@@ -18,3 +18,6 @@ coverage/
 # OS / logs
 .DS_Store
 *.log
+
+# Evaluation results (pnpm eval)
+eval/results/

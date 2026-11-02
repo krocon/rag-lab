@@ -1,0 +1,119 @@
+name: Release
+
+# Runs only when the maintainer pushes a version tag (vX.Y.Z or vX.Y.Z-pre.N), never for pull
+# requests or branch pushes. Checklist: docs/release.md.
+on:
+  push:
+    tags: ['v*.*.*']
+
+# Default for every job; only "images" (packages: write) and "github-release" (contents: write)
+# get more, at job level.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify tag, package versions and changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - id: version
+        name: Version from the tag
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      # Fails unless every package.json has this version and CHANGELOG.md has its section.
+      - run: node scripts/release-version.mjs --check "${{ steps.version.outputs.version }}"
+
+  ci:
+    name: CI
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  images:
+    name: Publish ${{ matrix.image }} to GHCR
+    needs: [verify, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io with GITHUB_TOKEN; no other secret is needed
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: raglab-api
+            dockerfile: infra/docker/api.Dockerfile
+          - image: raglab-web
+            dockerfile: infra/docker/web.Dockerfile
+          - image: raglab-mcp
+            dockerfile: infra/docker/mcp.Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+      # Image names must be lower case; the owner comes from the repository, never hard-coded.
+      - id: name
+        name: Image name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v4 # arm64 images (e.g. Apple silicon) next to amd64
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Tags: 1.2.3 and 1.2 (plus "latest" for releases without pre-release suffix) and OCI labels
+      # (source, revision, version, created).
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Build provenance and SBOM as attestations in the registry (no signing yet).
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  github-release:
+    name: GitHub release
+    needs: [verify, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the release
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Release notes from CHANGELOG.md
+        run: node scripts/release-version.mjs --notes "${{ needs.verify.outputs.version }}" > release-notes.md
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          prerelease=()
+          if [[ "$VERSION" == *-* ]]; then prerelease=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "RAGLab $GITHUB_REF_NAME" \
+            --notes-file release-notes.md "${prerelease[@]}"

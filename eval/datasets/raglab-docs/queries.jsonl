@@ -1,0 +1,40 @@
+{"id":"q01","query":"How often should I feed a sourdough starter that I keep in the refrigerator?","relevant":[{"document":"sourdough-baking.md","heading":"Feeding the starter"}]}
+{"id":"q02","query":"What does 70 percent hydration mean for bread dough?","relevant":[{"document":"sourdough-baking.md","heading":"Hydration and mixing"}]}
+{"id":"q03","query":"How can I tell that bulk fermentation of my dough is done?","relevant":[{"document":"sourdough-baking.md","heading":"Bulk fermentation and proofing"}]}
+{"id":"q04","query":"Why bake bread with the lid on at first?","relevant":[{"document":"sourdough-baking.md","heading":"Baking in a Dutch oven"}]}
+{"id":"q05","query":"What do many queen cells in late spring tell a beekeeper?","relevant":[{"document":"beekeeping-basics.md","heading":"Inspections and swarming"}]}
+{"id":"q06","query":"How do I treat a colony for varroa parasites?","relevant":[{"document":"beekeeping-basics.md","heading":"Varroa mites"}]}
+{"id":"q07","query":"How much honey must stay in the hive for the winter?","relevant":[{"document":"beekeeping-basics.md","heading":"Harvesting honey"}]}
+{"id":"q08","query":"Should I rebase commits that teammates already pulled?","relevant":[{"document":"git-branching.md","heading":"Merge versus rebase"}]}
+{"id":"q09","query":"What do the <<<<<<< markers in a file mean and how do I continue?","relevant":[{"document":"git-branching.md","heading":"Resolving conflicts"}]}
+{"id":"q10","query":"I reset my branch and lost commits – can I get them back?","relevant":[{"document":"git-branching.md","heading":"Undoing mistakes"}]}
+{"id":"q11","query":"How do I restore a database to the minute before someone dropped a table?","relevant":[{"document":"postgres-backups.md","heading":"Physical backups and point-in-time recovery"}]}
+{"id":"q12","query":"Can I restore just one table from a pg_dump file?","relevant":[{"document":"postgres-backups.md","heading":"Logical backups with pg_dump"}]}
+{"id":"q13","query":"How do I find out my realistic recovery time?","relevant":[{"document":"postgres-backups.md","heading":"Testing restores"}]}
+{"id":"q14","query":"My compost heap smells like ammonia, what is wrong?","relevant":[{"document":"home-composting.md","heading":"Troubleshooting smells"}]}
+{"id":"q15","query":"Which kitchen scraps count as greens and which materials are browns?","relevant":[{"document":"home-composting.md","heading":"Greens and browns"}]}
+{"id":"q16","query":"How many grams of carbohydrates should I take per hour on long runs?","relevant":[{"document":"marathon-training.md","heading":"Fuelling and hydration"}]}
+{"id":"q17","query":"How much should I cut my weekly running volume before race day?","relevant":[{"document":"marathon-training.md","heading":"Tapering"}]}
+{"id":"q18","query":"How fast should the longest weekly run be?","relevant":[{"document":"marathon-training.md","heading":"The long run"}]}
+{"id":"q19","query":"The lower leaves of my plant turn yellow and soft – am I overwatering it?","relevant":[{"document":"houseplant-care.txt","marker":"signs of overwatering"}]}
+{"id":"q20","query":"When is the right time to move a plant into a bigger pot?","relevant":[{"document":"houseplant-care.txt","marker":"Repot a plant when roots grow out of the drainage hole"}]}
+{"id":"q21","query":"Is an east-west roof layout worse for photovoltaics than facing south?","relevant":[{"document":"solar-panels.md","heading":"Orientation and shading"}]}
+{"id":"q22","query":"What is the difference between a string inverter and microinverters?","relevant":[{"document":"solar-panels.md","heading":"Inverters"}]}
+{"id":"q23","query":"Do I need to clean my solar panels regularly?","relevant":[{"document":"solar-panels.md","heading":"Maintenance"}]}
+{"id":"q24","query":"What pressure should road bike tyres have?","relevant":[{"document":"bicycle-maintenance.md","heading":"Tyre pressure"}]}
+{"id":"q25","query":"My disc brakes squeal, how do I fix that?","relevant":[{"document":"bicycle-maintenance.md","heading":"Brakes"}]}
+{"id":"q26","query":"How often should a bike chain be oiled and when should it be replaced?","relevant":[{"document":"bicycle-maintenance.md","heading":"Cleaning and lubricating the chain"}]}
+{"id":"q27","query":"My coffee tastes sour – should I grind finer or coarser?","relevant":[{"document":"coffee-brewing.md","heading":"Grind size"}]}
+{"id":"q28","query":"How many grams of coffee per litre of water for filter coffee?","relevant":[{"document":"coffee-brewing.md","heading":"Brew ratio and water"}]}
+{"id":"q29","query":"Why are SMS codes weaker than an authenticator app for two-factor login?","relevant":[{"document":"password-security.md","heading":"Two-factor authentication"}]}
+{"id":"q30","query":"What should I do when a website I use was breached?","relevant":[{"document":"password-security.md","heading":"After a data breach"}]}
+{"id":"q31","query":"Why do chunks overlap when splitting documents for retrieval?","relevant":[{"document":"raglab-glossary.md","heading":"Chunking"}]}
+{"id":"q32","query":"What does mean reciprocal rank measure?","relevant":[{"document":"raglab-glossary.md","heading":"Evaluation metrics"}]}
+{"id":"q33","query":"Can I compare vectors produced by two different embedding models?","relevant":[{"document":"raglab-glossary.md","heading":"Embeddings"}]}
+{"id":"q34","query":"What is the best first telescope for a beginner on a budget?","relevant":[{"document":"night-sky-observing.txt","marker":"Dobsonian reflector"}]}
+{"id":"q35","query":"Why should I use a red light while stargazing?","relevant":[{"document":"night-sky-observing.txt","marker":"red flashlight"}]}
+{"id":"q36","query":"A cron job scheduled at 02:30 local time did not run in March – why?","relevant":[{"document":"timezones-in-software.md","heading":"Daylight saving time"}]}
+{"id":"q37","query":"How should I store the time of a meeting planned for next year?","relevant":[{"document":"timezones-in-software.md","heading":"Future events"}]}
+{"id":"q38","query":"How can tests control the current time?","relevant":[{"document":"timezones-in-software.md","heading":"Testing date logic"}]}
+{"id":"q39","query":"Where should backup copies and recovery codes be kept so that a single compromised account cannot destroy them?","relevant":[{"document":"postgres-backups.md","heading":"Retention"},{"document":"password-security.md","heading":"Password managers"},{"document":"password-security.md","marker":"Store the backup codes you receive during setup offline"}]}
+{"id":"q40","query":"How much water should I drink, and how do I keep things hydrated – dough, runners and compost?","relevant":[{"document":"marathon-training.md","heading":"Fuelling and hydration"},{"document":"sourdough-baking.md","heading":"Hydration and mixing"},{"document":"home-composting.md","heading":"Moisture and turning"}]}

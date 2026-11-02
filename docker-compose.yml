@@ -1,13 +1,37 @@
-# RAGLab local development stack.
+# RAGLab stack.
 #
-#   docker compose up -d                     → PostgreSQL + pgvector only (default)
-#   docker compose --profile app up -d --build   → additionally API + web app in containers
-#   docker compose --profile ollama up -d    → additionally Ollama in a container (Linux/NVIDIA;
-#                                              on macOS run Ollama natively for GPU access)
+#   docker compose up -d                          → PostgreSQL + pgvector only (default, for `pnpm dev`)
+#   docker compose --profile app up -d --build    → full stack: postgres → migrate → api → web
+#                                                   UI on http://localhost:8080
+#   docker compose --profile mcp run --rm -T mcp  → MCP server (stdio) against the api container
+#   docker compose --profile ollama up -d         → additionally Ollama in a container (Linux/NVIDIA;
+#                                                   on macOS run Ollama natively for GPU access)
 #
-# All credentials come from `.env` (see .env.example).
+# All credentials come from `.env` (see .env.example). Every port is published on 127.0.0.1 only:
+# RAGLab has no authentication (docs/security.md §7).
+#
+# Prebuilt release images instead of local builds (docs/release.md):
+#   RAGLAB_API_IMAGE=ghcr.io/<owner>/raglab-api:<version> \
+#   RAGLAB_WEB_IMAGE=ghcr.io/<owner>/raglab-web:<version> docker compose --profile app up -d --no-build
+#
+# Resource limits below are starting points for a single user; raise them for large uploads or
+# many parallel chats. PostgreSQL has no limit: HNSW index builds need memory.
 
 name: raglab
+
+# Container hardening shared by the RAGLab services: read-only root file system (writable /tmp
+# only), no Linux capabilities, no privilege escalation. The images run as non-root users.
+x-hardening: &hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+
+# One API image for the "migrate" and "api" services.
+x-api-build: &api-build
+  context: .
+  dockerfile: infra/docker/api.Dockerfile
 
 services:
   postgres:
@@ -29,21 +53,49 @@ services:
       retries: 10
       start_period: 10s
 
-  api:
+  # Applies pending SQL migrations once and exits; the API starts only after it succeeded.
+  migrate:
     profiles: [app]
-    build:
-      context: .
-      dockerfile: infra/docker/api.Dockerfile
-    restart: unless-stopped
+    build: *api-build
+    image: ${RAGLAB_API_IMAGE:-raglab-api:local}
+    command: ['node', 'dist/db/migrate.js']
+    restart: 'no'
+    <<: *hardening
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    healthcheck:
+      disable: true
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  api:
+    profiles: [app]
+    build: *api-build
+    image: ${RAGLAB_API_IMAGE:-raglab-api:local}
+    restart: unless-stopped
+    <<: *hardening
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-info}
       API_HOST: 0.0.0.0
       API_PORT: 3000
       CORS_ORIGINS: http://localhost:8080
+      # "api" lets the MCP container (profile mcp) reach the API on the private compose network.
+      ALLOWED_HOSTS: localhost,127.0.0.1,[::1],api
+      # The container listens on all interfaces, but the port is published on 127.0.0.1 only and
+      # the web container reaches it through the private compose network (docs/security.md).
+      # Remove this (or put an authenticating reverse proxy in front) before publishing ports.
+      NETWORK_ACCESS_PROTECTED: 'true'
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-true}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       OLLAMA_BASE_URL: ${OLLAMA_DOCKER_BASE_URL:-http://host.docker.internal:11434}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
@@ -58,30 +110,67 @@ services:
       - 'host.docker.internal:host-gateway'
     ports:
       - '127.0.0.1:3000:3000'
+    # Liveness (no dependencies), same check as the image's HEALTHCHECK. Readiness incl. database
+    # and vector dimension: GET /api/health/ready.
     healthcheck:
       test:
         [
           'CMD',
           'node',
           '-e',
-          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
+    # Uploads are validated in memory (up to MAX_UPLOAD_REQUEST_BYTES per request).
+    deploy:
+      resources:
+        limits:
+          memory: 1g
 
   web:
     profiles: [app]
     build:
       context: .
       dockerfile: infra/docker/web.Dockerfile
+    image: ${RAGLAB_WEB_IMAGE:-raglab-web:local}
     restart: unless-stopped
+    <<: *hardening
     depends_on:
       api:
         condition: service_healthy
     ports:
       - '127.0.0.1:8080:8080'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  # MCP server (stdio). Not a long-running service: an MCP client starts one container per session,
+  # e.g. command "docker", args ["compose", "-f", "/path/to/docker-compose.yml", "--profile", "mcp",
+  # "run", "--rm", "-T", "mcp"]. Needs the running app profile (README → MCP server).
+  mcp:
+    profiles: [mcp]
+    build:
+      context: .
+      dockerfile: infra/docker/mcp.Dockerfile
+    image: ${RAGLAB_MCP_IMAGE:-raglab-mcp:local}
+    <<: *hardening
+    stdin_open: true
+    environment:
+      RAGLAB_API_URL: http://api:3000
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
   ollama:
     profiles: [ollama]
@@ -91,6 +180,12 @@ services:
       - '127.0.0.1:11434:11434'
     volumes:
       - ollama-data:/root/.ollama
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
 volumes:
   postgres-data:

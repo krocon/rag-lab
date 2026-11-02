@@ -1,0 +1,40 @@
+# Dependency update proposal (prompts 012, 015). Dependabot only runs once the maintainer enables it in
+# the repository settings (Settings → Code security → Dependabot version updates).
+# pnpm workspaces are handled by the "npm" ecosystem (pnpm-lock.yaml is updated).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      angular:
+        patterns: ['@angular/*', '@angular-devkit/*', 'angular-eslint']
+      fastify:
+        patterns: ['fastify', '@fastify/*']
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # Major updates of the core stack get their own prompt/ADR (docs/adr/0001-technology-stack.md).
+      - dependency-name: 'typescript'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@angular/*'
+        update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # Base images of infra/docker/*.Dockerfile (node, nginx-unprivileged); each FROM line names an
+  # exact tag so updates arrive as reviewable pull requests (prompt 015).
+  - package-ecosystem: docker
+    directory: /infra/docker
+    schedule:
+      interval: weekly
+  # Images in docker-compose.yml (pgvector/pgvector, ollama/ollama). The pgvector tag is also used
+  # by the CI service container (.github/workflows/ci.yml) – keep both in sync.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly

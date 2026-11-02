@@ -21,7 +21,8 @@
 
 .shell {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  /* minmax(0, 1fr): wide content (tables, code) scrolls inside main instead of widening the page. */
+  grid-template-columns: 240px minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     'header header'
@@ -112,7 +113,7 @@
 
 @media (max-width: 760px) {
   .shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'header'
       'nav'

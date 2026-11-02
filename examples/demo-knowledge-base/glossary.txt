@@ -1,0 +1,40 @@
+Kettlebird glossary
+
+Attempt
+One execution of a job's command or HTTP call. A scheduled run consists of up to max_attempts
+attempts.
+
+Backoff
+The waiting time between two attempts. Since 2.3.0 it is exponential: 30 seconds, doubled after
+every attempt, at most 10 minutes, plus or minus 10 percent jitter.
+
+Catch-up
+Running the most recent missed run of a daily or weekdays schedule after the daemon was down.
+
+Daemon
+The long-running process started with "kettlebird serve". It schedules and runs jobs and serves
+the dashboard and the HTTP API.
+
+Dashboard
+The read-only web interface under /dash. It shows jobs, schedules, run history and output.
+
+Job file
+A TOML file in the jobs directory that defines one job. The file name is the job name.
+
+Overlap policy
+What happens when a run is due while the previous run is still running: skip, queue or allow.
+
+Parked
+The state of a job that failed all attempts of three scheduled runs in a row. A parked job is no
+longer scheduled until "kettlebird jobs unpark" is run.
+
+Paused
+The state of a job that an operator stopped with "kettlebird jobs pause". Unlike parking, pausing
+is always manual.
+
+Queued
+The state of a run that is due but waits for a free slot (scheduler.max_parallel) or for the
+previous run of the same job (overlap = "queue").
+
+State database
+The SQLite file kettlebird.db that stores schedules, runs and their output.

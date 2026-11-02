@@ -1,0 +1,30 @@
+{
+  "name": "@raglab/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RAGLab MCP server – read-only knowledge base tools for MCP clients (stdio)",
+  "type": "module",
+  "main": "dist/main.js",
+  "bin": {
+    "raglab-mcp": "dist/main.js"
+  },
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@raglab/shared": "workspace:*",
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "vitest": "^5.0.5"
+  }
+}

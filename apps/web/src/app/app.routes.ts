@@ -9,9 +9,33 @@ export const routes: Routes = [
   },
   {
     path: 'knowledge-bases',
-    title: 'Knowledge Bases · RAGLab',
-    loadComponent: () =>
-      import('./features/knowledge-bases/knowledge-bases-page').then((m) => m.KnowledgeBasesPage),
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        title: 'Knowledge Bases · RAGLab',
+        loadComponent: () =>
+          import('./features/knowledge-bases/knowledge-base-list-page').then(
+            (m) => m.KnowledgeBaseListPage,
+          ),
+      },
+      {
+        path: ':collectionId',
+        title: 'Knowledge Base · RAGLab',
+        loadComponent: () =>
+          import('./features/knowledge-bases/collection-detail-page').then(
+            (m) => m.CollectionDetailPage,
+          ),
+      },
+      {
+        path: ':collectionId/documents/:documentId',
+        title: 'Document · RAGLab',
+        loadComponent: () =>
+          import('./features/knowledge-bases/document-detail-page').then(
+            (m) => m.DocumentDetailPage,
+          ),
+      },
+    ],
   },
   {
     path: 'chat',
