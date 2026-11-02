@@ -1,0 +1,203 @@
+/*
+ * RAGLab design tokens. Colors meet WCAG 2.2 AA contrast for text on their surfaces.
+ * Theme: follows the OS unless the user picks one (ThemeService sets data-theme on <html>).
+ */
+:root {
+  color-scheme: light;
+  --rl-bg: #f7f8fa;
+  --rl-surface: #ffffff;
+  --rl-surface-muted: #eef1f5;
+  --rl-border: #d4d9e1;
+  --rl-text: #161b22;
+  --rl-text-muted: #4b5563;
+  --rl-accent: #3b46c4;
+  --rl-accent-contrast: #ffffff;
+  --rl-accent-soft: #e6e8fb;
+  --rl-ok: #146c2e;
+  --rl-ok-soft: #e3f4e8;
+  --rl-danger: #b42318;
+  --rl-danger-soft: #fdecea;
+  --rl-warn: #8a5a00;
+  --rl-warn-soft: #fdf3dc;
+  --rl-focus: #3b46c4;
+  --rl-radius: 8px;
+  --rl-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --rl-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+@mixin dark-tokens {
+  color-scheme: dark;
+  --rl-bg: #0d1117;
+  --rl-surface: #161b22;
+  --rl-surface-muted: #1f2630;
+  --rl-border: #30363d;
+  --rl-text: #e6edf3;
+  --rl-text-muted: #9da7b3;
+  --rl-accent: #8b93ff;
+  --rl-accent-contrast: #0d1117;
+  --rl-accent-soft: #232a4d;
+  --rl-ok: #56d364;
+  --rl-ok-soft: #12291a;
+  --rl-danger: #ff7b72;
+  --rl-danger-soft: #3a1714;
+  --rl-warn: #e3b341;
+  --rl-warn-soft: #3a2c0b;
+  --rl-focus: #8b93ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    @include dark-tokens;
+  }
+}
+
+:root[data-theme='dark'] {
+  @include dark-tokens;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--rl-bg);
+  color: var(--rl-text);
+  font-family: var(--rl-font);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 0 0 0.5rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+a {
+  color: var(--rl-accent);
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--rl-mono);
+  font-size: 0.9em;
+}
+
+code {
+  background: var(--rl-surface-muted);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--rl-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.rl-card {
+  background: var(--rl-surface);
+  border: 1px solid var(--rl-border);
+  border-radius: var(--rl-radius);
+  padding: 1.25rem;
+}
+
+.rl-muted {
+  color: var(--rl-text-muted);
+}
+
+.rl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--rl-border);
+  background: var(--rl-surface);
+  color: var(--rl-text);
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--rl-surface-muted);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+/* Status badges always combine an icon/text label with color – never color alone. */
+.rl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  border: 1px solid currentColor;
+
+  &--ok {
+    color: var(--rl-ok);
+    background: var(--rl-ok-soft);
+  }
+
+  &--danger {
+    color: var(--rl-danger);
+    background: var(--rl-danger-soft);
+  }
+
+  &--warn {
+    color: var(--rl-warn);
+    background: var(--rl-warn-soft);
+  }
+
+  &--neutral {
+    color: var(--rl-text-muted);
+    background: var(--rl-surface-muted);
+  }
+}
+
+.rl-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

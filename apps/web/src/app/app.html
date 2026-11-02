@@ -1,0 +1,28 @@
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<div class="shell">
+  <header class="shell__header">
+    <a class="brand" routerLink="/" aria-label="RAGLab home">
+      <span class="brand__mark" aria-hidden="true">◆</span>
+      <span class="brand__name">RAGLab</span>
+    </a>
+    <span class="brand__tagline rl-muted">RAG workbench for developers</span>
+  </header>
+
+  <nav class="shell__nav" aria-label="Main">
+    <ul>
+      @for (item of navItems; track item.path) {
+        <li>
+          <a [routerLink]="item.path" routerLinkActive="is-active" ariaCurrentWhenActive="page">
+            <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+            {{ item.label }}
+          </a>
+        </li>
+      }
+    </ul>
+  </nav>
+
+  <main id="main-content" class="shell__main" tabindex="-1">
+    <router-outlet />
+  </main>
+</div>

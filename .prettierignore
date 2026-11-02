@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.angular
+pnpm-lock.yaml
+apps/api/drizzle/meta
+prompts
+docs/00-bestandsaufnahme.md
