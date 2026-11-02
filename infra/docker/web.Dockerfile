@@ -20,7 +20,7 @@ COPY apps/web apps/web
 RUN pnpm --filter @raglab/web build
 
 # Runs as the unprivileged user "nginx" (uid 101) and listens on 8080.
-FROM nginxinc/nginx-unprivileged:1.30.6-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine AS runtime
 LABEL org.opencontainers.image.title="raglab-web" \
       org.opencontainers.image.description="RAGLab web app (Angular) served by nginx" \
       org.opencontainers.image.licenses="MIT"
