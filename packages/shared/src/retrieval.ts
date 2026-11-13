@@ -22,9 +22,23 @@ export interface RetrievalResult {
   chunkId: string;
   documentId: string;
   filename: string;
+  /** Relative path of the document (`null` for uploads without a path). */
+  path: string | null;
+  /** Language of the document, derived from its extension. */
+  language: string;
   chunkIndex: number;
   headingPath: string[];
   content: string;
+  /** 1-based line range of the chunk; `null` for chunks stored before prompt 017. */
+  startLine: number | null;
+  endLine: number | null;
+  /** Enclosing top-level declaration(s) of source code, else `null`. */
+  symbol: string | null;
+  /**
+   * Link to the lines in the repository at the imported commit
+   * (`https://github.com/o/r/blob/<sha>/<path>#L10-L42`), only for known hosts; else `null`.
+   */
+  sourceUrl: string | null;
   /** Offsets in UTF-16 code units of the normalised document text. */
   startOffset: number;
   endOffset: number;

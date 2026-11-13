@@ -14,6 +14,12 @@ function result(rank: number, overrides: Partial<RetrievalResult> = {}): Retriev
     chunkId: `00000000-0000-7000-8000-00000000000${rank}`,
     documentId: '00000000-0000-7000-8000-0000000000aa',
     filename: 'guide.md',
+    path: null,
+    language: 'markdown',
+    startLine: null,
+    endLine: null,
+    symbol: null,
+    sourceUrl: null,
     chunkIndex: rank - 1,
     headingPath: ['Guide', 'Setup'],
     content: `Content of chunk ${rank}.`,
@@ -147,5 +153,61 @@ describe('escaping', () => {
   it('leaves other markup and code untouched', () => {
     const code = 'if (a < b) { return <div>sources</div>; } <sourcemap>';
     expect(neutralizeSourceTags(code)).toBe(code);
+  });
+});
+
+describe('renderSource – source code (017)', () => {
+  const code = (overrides: Partial<RetrievalResult> = {}) =>
+    result(1, {
+      filename: 'tree.ts',
+      path: 'packages/table/src/tree.ts',
+      language: 'typescript',
+      headingPath: ['packages/table/src/tree.ts', 'class TreeFactory'],
+      symbol: 'class TreeFactory',
+      startLine: 10,
+      endLine: 42,
+      content: 'export class TreeFactory {\n  build() {}\n}',
+      ...overrides,
+    });
+
+  it('renders path, line range, language and symbol, and fences the code (snapshot)', () => {
+    const block = renderSource(1, code());
+    expect(block).toMatchSnapshot();
+    expect(block).toContain('path="packages/table/src/tree.ts" lines="10-42" language="typescript"');
+    expect(block).toContain('symbol="class TreeFactory"');
+    expect(block).not.toContain('section=');
+    expect(block).toContain('```typescript\nexport class TreeFactory');
+  });
+
+  it('uses a fence longer than any backtick run in the code', () => {
+    const block = renderSource(1, code({ content: 'const md = `\n```js\nx\n```\n`;' }));
+    expect(block).toContain('````typescript\n');
+    expect(block.trimEnd().endsWith('````\n</source>')).toBe(true);
+  });
+
+  it('renders Markdown with a path as before plus path and lines, without a fence', () => {
+    const block = renderSource(
+      2,
+      result(2, { path: 'docs/guide.md', language: 'markdown', startLine: 3, endLine: 9 }),
+    );
+    expect(block).toBe(
+      '<source id="2" document="guide.md" chunk="1" path="docs/guide.md" lines="3-9" section="Guide &gt; Setup">\nContent of chunk 2.\n</source>',
+    );
+  });
+
+  it('escapes path and symbol attributes', () => {
+    const block = renderSource(1, code({ path: 'a/"x" <y>.ts', symbol: 'class "A"' }));
+    expect(block).toContain('path="a/&quot;x&quot; &lt;y&gt;.ts"');
+    expect(block).toContain('symbol="class &quot;A&quot;"');
+  });
+
+  it('counts the fenced block against the context budget', () => {
+    const prompt = buildGroundedPrompt({
+      question: 'q',
+      results: [code()],
+      contextCharBudget: renderSource(1, code()).length,
+    });
+    expect(prompt.includedSources).toHaveLength(1);
+    expect(prompt.contextChars).toBe(renderSource(1, code()).length);
   });
 });

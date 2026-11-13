@@ -2,7 +2,7 @@
   "name": "raglab",
   "version": "0.1.0",
   "private": true,
-  "description": "RAGLab \u2013 an open-source RAG workbench for developers",
+  "description": "RAGLab – an open-source RAG workbench for developers",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.28.9",
@@ -10,6 +10,7 @@
     "node": "^24.15.0 || >=26.0.0"
   },
   "scripts": {
+    "i": "pnpm i",
     "dev": "pnpm --parallel --filter @raglab/api --filter @raglab/web dev",
     "dev:api": "pnpm --filter @raglab/api dev",
     "dev:web": "pnpm --filter @raglab/web start",
@@ -29,7 +30,8 @@
     "docker:smoke": "node scripts/docker-smoke.mjs",
     "demo:seed": "node scripts/demo-seed.mjs",
     "docs:links": "node scripts/check-links.mjs",
-    "release:version": "node scripts/release-version.mjs"
+    "release:version": "node scripts/release-version.mjs",
+    "kb:import": "node scripts/kb-import.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

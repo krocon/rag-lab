@@ -1,4 +1,4 @@
-import { HttpClient, type HttpEvent } from '@angular/common/http';
+import { HttpClient, type HttpEvent, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type {
   CollectionDto,
@@ -7,6 +7,7 @@ import type {
   DocumentChunksResponse,
   DocumentContentResponse,
   DocumentDto,
+  DocumentListQuery,
   DocumentListResponse,
   ProvidersStatusResponse,
   SystemInfoResponse,
@@ -62,6 +63,23 @@ export class KnowledgeApi {
       this.http
         .get<DocumentListResponse>(API_PATHS.collectionDocuments(collectionId))
         .pipe(map((r) => r.items)),
+    );
+  }
+
+  /**
+   * One page of documents, ordered by path and filtered by path prefix on the server
+   * (`total` counts all matches). An empty `pathPrefix` is not sent.
+   */
+  listDocumentPage(
+    collectionId: string,
+    query: DocumentListQuery,
+  ): Observable<DocumentListResponse> {
+    let params = new HttpParams();
+    if (query.pathPrefix) params = params.set('pathPrefix', query.pathPrefix);
+    if (query.limit !== undefined) params = params.set('limit', query.limit);
+    if (query.offset !== undefined) params = params.set('offset', query.offset);
+    return this.handle(
+      this.http.get<DocumentListResponse>(API_PATHS.collectionDocuments(collectionId), { params }),
     );
   }
 

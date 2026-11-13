@@ -32,6 +32,7 @@ function collection(overrides: Partial<CollectionDto> = {}): CollectionDto {
     documentCount: 2,
     readyDocumentCount: 2,
     chunkCount: 4,
+    source: null,
     createdAt: '2026-11-02T10:00:00.000Z',
     updatedAt: '2026-11-02T10:00:00.000Z',
     ...overrides,
@@ -43,11 +44,14 @@ function row(distance: number, overrides: Partial<RetrievedChunk> = {}): Retriev
     chunkId: randomUUID(),
     documentId: 'doc-a',
     filename: 'guide.md',
+    path: null,
+    mimeType: 'text/markdown',
     chunkIndex: 0,
     content: 'text',
     headingPath: ['Guide'],
     startOffset: 0,
     endOffset: 4,
+    metadata: {},
     distance,
     ...overrides,
   };
@@ -329,5 +333,46 @@ describe('retrieval service', () => {
       service.search({ collectionId: COLLECTION_ID, query: 'q' }, controller.signal),
     ).rejects.toBe(reason);
     expect(searches).toEqual([]);
+  });
+});
+
+describe('rankResults – paths, lines and source links (017)', () => {
+  it('maps path, language, lines and symbol and builds a link at the imported commit', () => {
+    const [ranked] = rankResults(
+      [
+        row(0.2, {
+          path: 'src/tree.ts',
+          mimeType: 'text/typescript',
+          metadata: { startLine: 10, endLine: 42, symbol: 'class Tree', overlapChars: 0 },
+        }),
+      ],
+      {
+        kind: 'git',
+        url: 'https://github.com/o/r',
+        ref: 'main',
+        commit: 'c'.repeat(40),
+        importedAt: '2026-11-11T00:00:00.000Z',
+      },
+    );
+    expect(ranked).toMatchObject({
+      path: 'src/tree.ts',
+      language: 'typescript',
+      startLine: 10,
+      endLine: 42,
+      symbol: 'class Tree',
+      sourceUrl: `https://github.com/o/r/blob/${'c'.repeat(40)}/src/tree.ts#L10-L42`,
+    });
+  });
+
+  it('leaves line range, symbol and link empty for chunks stored before 017', () => {
+    const [ranked] = rankResults([row(0.2)]);
+    expect(ranked).toMatchObject({
+      path: null,
+      language: 'markdown',
+      startLine: null,
+      endLine: null,
+      symbol: null,
+      sourceUrl: null,
+    });
   });
 });

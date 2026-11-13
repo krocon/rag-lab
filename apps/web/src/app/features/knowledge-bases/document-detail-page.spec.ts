@@ -107,6 +107,112 @@ describe('DocumentDetailPage', () => {
     expect(text(element)).toContain('2 chunks, 1 with embedding.');
   });
 
+  describe('source code documents', () => {
+    const CODE = 'export class Tree {\n  // <b>not bold</b>\n}\n\nexport function grow() {}\n';
+    const codeDoc = documentDto({
+      filename: 'tree.ts',
+      path: 'packages/table/src/tree.ts',
+      language: 'typescript',
+      mimeType: 'text/plain',
+    });
+    const codeChunks = [
+      chunk(0, {
+        content: 'export class Tree {\n  // <b>not bold</b>\n}\n',
+        headingPath: ['packages/table/src/tree.ts', 'class Tree'],
+        startLine: 1,
+        endLine: 3,
+        symbol: 'class Tree',
+      }),
+      chunk(1, {
+        content: 'export function grow() {}\n',
+        headingPath: ['packages/table/src/tree.ts', 'function grow'],
+        startLine: 5,
+        endLine: 5,
+        symbol: 'function grow',
+      }),
+    ];
+
+    async function loadCode(): Promise<void> {
+      http.expectOne(`/api/collections/${COLLECTION_ID}`).flush(collection());
+      http.expectOne(DOCUMENT_URL).flush(codeDoc);
+      http.expectOne(`${DOCUMENT_URL}/content`).flush({ documentId: DOCUMENT_ID, content: CODE });
+      http
+        .expectOne(`${DOCUMENT_URL}/chunks`)
+        .flush({ documentId: DOCUMENT_ID, chunks: codeChunks });
+      await fixture.whenStable();
+    }
+
+    it('shows path and language in the header and metadata', async () => {
+      create();
+      await loadCode();
+
+      expect(text(element.querySelector('[data-testid="document-path"]'))).toBe(
+        'packages/table/src/tree.ts',
+      );
+      const metadata = text(element.querySelector('section[aria-labelledby="metadata-heading"]'));
+      expect(metadata).toContain('Pathpackages/table/src/tree.ts');
+      expect(metadata).toContain('Languagetypescript');
+    });
+
+    it('renders code as text with line numbers and visible chunk boundaries', async () => {
+      create();
+      await loadCode();
+
+      const view = required(element.querySelector('[data-testid="code-view"]'));
+      expect(element.querySelector('[data-testid="fulltext"]')).toBeNull();
+      const lines = Array.from(view.querySelectorAll('.code__line'));
+      expect(lines).toHaveLength(5);
+      expect(lines.map((line) => text(line.querySelector('.code__ln')))).toEqual([
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+      ]);
+      expect(lines[1]?.querySelector('.code__text')?.textContent).toBe('  // <b>not bold</b>');
+      expect(view.querySelector('b')).toBeNull();
+      expect(lines[0]?.querySelector('.code__ln')?.getAttribute('aria-hidden')).toBe('true');
+      expect(Array.from(view.querySelectorAll('[data-testid="chunk-boundary"]')).map(text)).toEqual(
+        ['Chunk #0 starts at line 1', 'Chunk #1 starts at line 5'],
+      );
+      expect(text(element)).toContain('5 lines');
+    });
+
+    it('lists chunks with path:lines and symbol instead of the heading path', async () => {
+      create();
+      await loadCode();
+
+      const items = Array.from(element.querySelectorAll('ol.chunks > li'));
+      expect(text(items[0]?.querySelector('[data-testid="chunk-location"]'))).toBe(
+        'packages/table/src/tree.ts:1–3',
+      );
+      expect(text(items[1]?.querySelector('[data-testid="chunk-location"]'))).toBe(
+        'packages/table/src/tree.ts:5',
+      );
+      expect(text(items[0])).toContain('Symbolclass Tree');
+      expect(text(items[0])).not.toContain('Heading path');
+      expect(items[0]?.querySelector('pre')?.classList).toContain('chunk__content--code');
+    });
+
+    it('highlights the lines of a deep-linked chunk', async () => {
+      HTMLElement.prototype.scrollIntoView = vi.fn();
+      create(codeChunks[1]?.id);
+      await loadCode();
+
+      const linked = Array.from(element.querySelectorAll('.code__line--linked')).map((line) =>
+        line.getAttribute('data-line'),
+      );
+      expect(linked).toEqual(['5']);
+    });
+  });
+
+  it('shows no location for chunks without line numbers', async () => {
+    create();
+    await load();
+    expect(element.querySelector('[data-testid="chunk-location"]')).toBeNull();
+    expect(element.querySelector('[data-testid="code-view"]')).toBeNull();
+  });
+
   it('scrolls to, focuses and highlights a deep-linked chunk', async () => {
     const scrollIntoView = vi.fn();
     HTMLElement.prototype.scrollIntoView = scrollIntoView;

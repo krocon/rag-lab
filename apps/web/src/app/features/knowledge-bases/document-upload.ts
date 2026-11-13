@@ -213,7 +213,7 @@ export class DocumentUpload {
   protected readonly limitsText = computed(() => {
     const limits = this.limits();
     if (limits) {
-      return `Markdown or text files (${limits.allowedExtensions.join(', ')}), UTF-8, up to ${formatBytes(limits.maxFileBytes)} each. Each file is uploaded on its own.`;
+      return `Text and source files (${limits.allowedExtensions.join(', ')}), UTF-8, up to ${formatBytes(limits.maxFileBytes)} each. Each file is uploaded on its own.`;
     }
     if (this.systemInfo.isLoading()) {
       return 'Loading upload limits…';

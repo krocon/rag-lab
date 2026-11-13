@@ -1,5 +1,8 @@
-/** How a text is split: `markdown` additionally splits at ATX headings and tracks heading paths. */
-export type ChunkingFormat = 'markdown' | 'text';
+/**
+ * How a text is split: `markdown` additionally splits at ATX headings and tracks heading paths,
+ * `code` splits source code at top-level declarations and never inside a line (ADR 0004).
+ */
+export type ChunkingFormat = 'markdown' | 'text' | 'code';
 
 /** A stored chunk of a document, without its embedding vector. */
 export interface ChunkDto {
@@ -16,10 +19,18 @@ export interface ChunkDto {
   charCount: number;
   /** ≈ `charCount / 4` – informative only, not a model tokenizer. */
   tokenEstimate: number | null;
-  /** Enclosing Markdown headings, outermost first; `[]` for plain text. */
+  /**
+   * Enclosing Markdown headings, outermost first; `[]` for plain text. Source code:
+   * `[path, symbol]` (symbol only when one was recognised).
+   */
   headingPath: string[];
   /** Length of the leading part repeated from the preceding chunk (0 = no overlap). */
   overlapChars: number;
+  /** 1-based first and last line of the chunk; `null` for chunks stored before prompt 017. */
+  startLine: number | null;
+  endLine: number | null;
+  /** Enclosing top-level declaration(s) of source code (`class TreeFactory`), else `null`. */
+  symbol: string | null;
   /** Whether an embedding is stored (embeddings follow with prompt 006). */
   hasEmbedding: boolean;
   createdAt: string;
@@ -35,6 +46,8 @@ export interface DocumentChunksResponse {
 export interface ChunkPreviewRequest {
   text: string;
   format: ChunkingFormat;
+  /** Language for `format: 'code'` (declaration heuristics), e.g. `typescript`; default generic. */
+  language?: string;
   targetSize?: number;
   overlap?: number;
 }
@@ -49,6 +62,9 @@ export interface ChunkPreviewItem {
   tokenEstimate: number;
   headingPath: string[];
   overlapChars: number;
+  startLine: number;
+  endLine: number;
+  symbol: string | null;
 }
 
 /**

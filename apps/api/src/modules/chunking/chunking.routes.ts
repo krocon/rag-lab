@@ -7,6 +7,7 @@ import type {
 import { errorResponseSchema } from '../../http/errors.js';
 import { idParamsSchema, type IdParams } from '../../http/schemas.js';
 import type { ChunkingService } from './chunking.service.js';
+import { CHUNKING_FORMATS } from './chunker.js';
 
 /** Maximum input length of the preview (characters); larger texts belong into an upload. */
 export const MAX_PREVIEW_TEXT_LENGTH = 100_000;
@@ -30,6 +31,9 @@ const chunkSchema = {
     'tokenEstimate',
     'headingPath',
     'overlapChars',
+    'startLine',
+    'endLine',
+    'symbol',
     'hasEmbedding',
     'createdAt',
   ],
@@ -48,12 +52,15 @@ const chunkSchema = {
       type: 'integer',
       description: 'Leading characters shared with the previous chunk',
     },
+    startLine: { type: ['integer', 'null'], description: '1-based; null for chunks stored before prompt 017' },
+    endLine: { type: ['integer', 'null'], description: '1-based; null for chunks stored before prompt 017' },
+    symbol: { type: ['string', 'null'], description: 'Enclosing top-level declaration(s) of source code' },
     hasEmbedding: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
   },
 } as const;
 
-const formatSchema = { type: 'string', enum: ['markdown', 'text'] } as const;
+const formatSchema = { type: 'string', enum: [...CHUNKING_FORMATS] } as const;
 
 const previewChunkSchema = {
   type: 'object',
@@ -66,6 +73,9 @@ const previewChunkSchema = {
     'tokenEstimate',
     'headingPath',
     'overlapChars',
+    'startLine',
+    'endLine',
+    'symbol',
   ],
   properties: {
     chunkIndex: { type: 'integer' },
@@ -76,6 +86,9 @@ const previewChunkSchema = {
     tokenEstimate: { type: 'integer' },
     headingPath: headingPathSchema,
     overlapChars: { type: 'integer' },
+    startLine: { type: 'integer' },
+    endLine: { type: 'integer' },
+    symbol: { type: ['string', 'null'] },
   },
 } as const;
 
@@ -133,6 +146,12 @@ export const chunkingRoutes: FastifyPluginAsync<ChunkingRoutesOptions> = async (
           properties: {
             text: { type: 'string', maxLength: MAX_PREVIEW_TEXT_LENGTH },
             format: formatSchema,
+            language: {
+              type: 'string',
+              maxLength: 32,
+              description:
+                'For `format: code`: language of the declaration heuristics (e.g. `typescript`, `vue`, `python`)',
+            },
             targetSize: { type: 'integer', minimum: 1, maximum: MAX_PREVIEW_TARGET_SIZE },
             overlap: { type: 'integer', minimum: 0, maximum: MAX_PREVIEW_TARGET_SIZE - 1 },
           },

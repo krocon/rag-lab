@@ -1,0 +1,115 @@
+{
+  "options": {
+    "targetSize": 600,
+    "overlap": 120,
+    "format": "code",
+    "language": "typescript"
+  },
+  "chunks": [
+    {
+      "chunkIndex": 0,
+      "content": "/**\n * Sample source file for the RAGLab code chunker golden test (self-written, MIT).\n * A tiny tree table: rows with children, flattened for rendering.\n */\nimport { EventEmitter } from 'node:events';\nimport type { Comparator } from './sorting';\n\nexport type RowId = string | number;\n\nexport interface TreeRow<T> {\n  id: RowId;\n  data: T;\n  children?: TreeRow<T>[];\n  expanded?: boolean;\n}\n\nexport const DEFAULT_INDENT = 16;",
+      "startOffset": 0,
+      "endOffset": 425,
+      "charCount": 425,
+      "tokenEstimate": 107,
+      "headingPath": [
+        "type RowId, interface TreeRow, const DEFAULT_INDENT"
+      ],
+      "overlapChars": 0,
+      "startLine": 1,
+      "endLine": 17,
+      "symbol": "type RowId, interface TreeRow, const DEFAULT_INDENT"
+    },
+    {
+      "chunkIndex": 1,
+      "content": "/**\n * Options of {@link TreeTableModel}.\n * `childrenKey` names the property that holds nested rows.\n */\nexport interface TreeTableOptions {\n  childrenKey: string;\n  indent: number;\n  sort?: Comparator<unknown>;\n}",
+      "startOffset": 427,
+      "endOffset": 641,
+      "charCount": 214,
+      "tokenEstimate": 54,
+      "headingPath": [
+        "interface TreeTableOptions"
+      ],
+      "overlapChars": 0,
+      "startLine": 19,
+      "endLine": 27,
+      "symbol": "interface TreeTableOptions"
+    },
+    {
+      "chunkIndex": 2,
+      "content": "@Injectable({\n  providedIn: 'root',\n})\nexport class TreeTableModel<T> extends EventEmitter {\n  private readonly rows: TreeRow<T>[];\n\n  constructor(\n    rows: TreeRow<T>[],\n    private readonly options: TreeTableOptions = { childrenKey: 'children', indent: DEFAULT_INDENT },\n  ) {\n    super();\n    this.rows = rows;\n  }",
+      "startOffset": 643,
+      "endOffset": 961,
+      "charCount": 318,
+      "tokenEstimate": 80,
+      "headingPath": [
+        "class TreeTableModel"
+      ],
+      "overlapChars": 0,
+      "startLine": 29,
+      "endLine": 41,
+      "symbol": "class TreeTableModel"
+    },
+    {
+      "chunkIndex": 3,
+      "content": ") {\n    super();\n    this.rows = rows;\n  }\n\n  /** Visible rows in display order: children follow their expanded parent. */\n  visibleRows(): { row: TreeRow<T>; depth: number }[] {\n    const result: { row: TreeRow<T>; depth: number }[] = [];\n    const visit = (rows: TreeRow<T>[], depth: number) => {\n      for (const row of rows) {\n        result.push({ row, depth });\n        if (row.expanded && row.children) {\n          visit(row.children, depth + 1);\n        }\n      }\n    };\n    visit(this.rows, 0);\n    return result;\n  }",
+      "startOffset": 919,
+      "endOffset": 1445,
+      "charCount": 526,
+      "tokenEstimate": 132,
+      "headingPath": [
+        "class TreeTableModel"
+      ],
+      "overlapChars": 46,
+      "startLine": 38,
+      "endLine": 56,
+      "symbol": "class TreeTableModel"
+    },
+    {
+      "chunkIndex": 4,
+      "content": "visit(row.children, depth + 1);\n        }\n      }\n    };\n    visit(this.rows, 0);\n    return result;\n  }\n\n  toggle(id: RowId): void {\n    const row = this.find(id);\n    if (row) {\n      row.expanded = !row.expanded;\n      this.emit('change', row);\n    }\n  }\n\n  private find(id: RowId, rows: TreeRow<T>[] = this.rows): TreeRow<T> | undefined {\n    for (const row of rows) {\n      if (row.id === id) {\n        return row;\n      }\n      const child = row.children ? this.find(id, row.children) : undefined;\n      if (child) {\n        return child;\n      }\n    }\n    return undefined;\n  }\n}",
+      "startOffset": 1341,
+      "endOffset": 1927,
+      "charCount": 586,
+      "tokenEstimate": 147,
+      "headingPath": [
+        "class TreeTableModel"
+      ],
+      "overlapChars": 108,
+      "startLine": 50,
+      "endLine": 78,
+      "symbol": "class TreeTableModel"
+    },
+    {
+      "chunkIndex": 5,
+      "content": "/** Builds a model from flat records with a `parentId` (e.g. rows from a database). */\nexport function createTreeTableModel<T extends { id: RowId; parentId?: RowId }>(\n  records: T[],\n): TreeTableModel<T> {\n  const byId = new Map<RowId, TreeRow<T>>();\n  for (const record of records) {\n    byId.set(record.id, { id: record.id, data: record, children: [] });\n  }\n  const roots: TreeRow<T>[] = [];\n  for (const record of records) {\n    const row = byId.get(record.id)!;\n    const parent = record.parentId === undefined ? undefined : byId.get(record.parentId);\n    (parent?.children ?? roots).push(row);",
+      "startOffset": 1929,
+      "endOffset": 2529,
+      "charCount": 600,
+      "tokenEstimate": 150,
+      "headingPath": [
+        "function createTreeTableModel"
+      ],
+      "overlapChars": 0,
+      "startLine": 80,
+      "endLine": 92,
+      "symbol": "function createTreeTableModel"
+    },
+    {
+      "chunkIndex": 6,
+      "content": "(parent?.children ?? roots).push(row);\n  }\n  return new TreeTableModel(roots);\n}",
+      "startOffset": 2491,
+      "endOffset": 2571,
+      "charCount": 80,
+      "tokenEstimate": 20,
+      "headingPath": [
+        "function createTreeTableModel"
+      ],
+      "overlapChars": 41,
+      "startLine": 92,
+      "endLine": 95,
+      "symbol": "function createTreeTableModel"
+    }
+  ]
+}

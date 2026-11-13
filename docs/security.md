@@ -145,7 +145,8 @@ durchsucht).
 
 ## 4. Uploads
 
-- **Allowlist nach Endung** (`.md`, `.markdown`, `.txt`), MIME-Typ wird abgeleitet, der
+- **Allowlist nach Endung** (Markdown, Text und seit 017 Quellcode, HTML/CSS, JSON/YAML/TOML,
+  SQL, Shell; Tabelle im README), MIME-Typ und Sprache werden abgeleitet, der
   `Content-Type` des Clients ignoriert; geprüft wird der **bereinigte** Name (ein per Bidi-Override
   getarntes `…dm.exe` wird als `.exe` erkannt → `415`).
 - **Binärerkennung:** NUL-Bytes → `400 INVALID_ENCODING`; striktes UTF-8 (`fatal: true`, auch
@@ -162,7 +163,10 @@ durchsucht).
   höchstens eine Datei über der Grenze im Speicher), **neu** optional
   `MAX_DOCUMENTS_PER_COLLECTION` (`409 DOCUMENT_LIMIT_REACHED`, vor dem Lesen und nach der
   Validierung geprüft; weiches Limit – parallele Uploads können es knapp überschreiten),
-  Formularfelder 10 × 1 KiB, Request-Timeout (§3), Upload-Rate-Limit (§3).
+  Formularfelder (seit 017: ein `path`-Feld je Datei plus 10 weitere, je max. 2 KiB),
+  Request-Timeout (§3), Upload-Rate-Limit (§3).
+- **Pfade (017):** relativer Pfad je Datei im Feld `path`, streng validiert (§12), nie als
+  Dateisystempfad verwendet.
 - **Keine Speicherung im Dateisystem:** Der normalisierte Text liegt nur in der Datenbank; Dateien
   werden nie ausgeführt oder unter benutzerdefinierten Pfaden abgelegt.
 
@@ -421,3 +425,61 @@ Server, die nach dem Lesen von RAGLab-Inhalten aufgerufen werden.
 keine Interna), `raglab-client.test.ts` (kein `Origin`, `redirect: 'error'`, Timeouts),
 `stdio.test.ts` (echter Prozess: stdout nur JSON-RPC, keine Query im stderr-Log, Header gegen
 Fake-API).
+
+## 12. Quellcode-Import (Prompt 017)
+
+`pnpm kb:import` ([ADR 0004](adr/0004-source-import.md)) liest ein lokales Verzeichnis oder klont
+ein Git-Repository und lädt die Dateien über die REST-API hoch. **Der API-Server liest keine
+Pfade und ruft keine URLs ab**: Import und Klon laufen als Client mit den Rechten und
+Git-Zugangsdaten des Nutzers. Neue Angriffsflächen und Maßnahmen:
+
+**Pfade.** Der relative Pfad ist Client-Eingabe und wird in der Oberfläche, im Prompt und in Links
+gezeigt. Server-Regeln (`ingestion/relative-path.ts`, `400 INVALID_PATH`): relativ, `/` als
+Trenner, kein `\`, kein führender `/`, kein Laufwerksbuchstabe, keine leeren, `.`- oder
+`..`-Segmente, keine Steuer-, Bidi- oder unsichtbaren Zeichen (gegen Spoofing wie
+`invoice\u202Etxt.exe`), keine Leerzeichen am Segmentrand, Segment ≤ 255, gesamt ≤ 512 Zeichen.
+Die Fehlermeldung wiederholt den Wert nicht. Der Pfad wird nie als Dateisystempfad benutzt, in
+Links nur prozentkodiert pro Segment, im Prompt attribut-escaped.
+
+**Git-URLs.** Das CLI akzeptiert nur `https://`, `ssh://` und `git@host:path`. `file://`,
+`ext::`, lokale Pfade als URL und Argumente mit führendem `-` werden abgelehnt (`file://` nur im
+Test mit ausdrücklicher Option). Der Klon läuft mit `core.hooksPath=/dev/null`, leerem
+Template-Verzeichnis, `protocol.ext.allow=never`, `protocol.file.allow=never`, ohne Submodule,
+ohne Tags, ohne LFS-Download (`GIT_LFS_SKIP_SMUDGE=1`), mit Tiefe 1, und `--` trennt die URL und
+den Ref von Optionen. `--ref` ist auf `[A-Za-z0-9._/@+-]` ohne `..` beschränkt. Das temporäre
+Verzeichnis wird auch im Fehlerfall gelöscht. Symbolische Links werden nie verfolgt (auch keine,
+die im Verzeichnis bleiben).
+
+**Zugangsdaten in URLs.** `https://user:token@host/…` kann nötig sein, um zu klonen. Das CLI zeigt
+und speichert die URL aber nur ohne Benutzer und Passwort, und Git-Fehlerausgaben werden
+geschwärzt (`https://***@…`). Die Remote-URL eines lokalen Checkouts wird ebenso bereinigt (z. B.
+`https://<user>@github.com/…`). Die API lehnt URLs mit Zugangsdaten ab (`400 INVALID_SOURCE`,
+ohne den Wert zu wiederholen). Request-Bodies werden nicht geloggt.
+
+**Geheimnisse im Import.** Dateien, die Geheimnisse enthalten können, werden **nie** hochgeladen,
+auch nicht mit `--include`: `.env*` (auch `.env.example`), `*.pem`, `*.key`, `*.p12`, `*.pfx`,
+`*.jks`, `*.keystore`, `*.ppk`, `*.gpg`, `*.kdbx`, `*.ovpn`, `id_rsa*`/`id_ed25519*` usw.,
+`.npmrc`, `.pypirc`, `.netrc`, `.htpasswd`, `.git-credentials`, `credentials*`, `secrets.*`,
+`service-account.*`, `terraform.tfvars`. Der Dry-Run listet sie immer vollständig als `secret`
+auf. **Restrisiko:** Geheimnisse *in* Quellcode-Dateien (hart kodierte Tokens) erkennt der Import
+nicht. Vor dem Import eines fremden oder internen Repositorys sollte der Dry-Run geprüft und die
+Collection als so vertraulich behandelt werden wie das Repository selbst.
+
+**Injection über Code-Kommentare und Strings.** Kommentare, Docstrings und String-Literale sind
+ein neuer Weg für Anweisungen an das Modell. Quellcode steht im Prompt in einem Code-Zaun, der
+länger ist als jede Backtick-Folge im Code, sodass Code den Zaun nicht schließen kann.
+`<source>`-Tags im Code werden neutralisiert (§6). Regel 6 des Systemprompts nennt Kommentare und
+Strings ausdrücklich als Daten. Testfall: `test/fixtures/security/prompt-injection-code.ts.txt`
+in `test/security/prompt-injection.test.ts`. Die Grenzen aus §6 gelten unverändert: Das senkt
+das Risiko, verhindert es aber nicht.
+
+**Links auf den Quelltext.** `sourceUrl` baut nur der Server, nur für GitHub, GitLab, Bitbucket und
+Codeberg, nur mit Hex-Commit-SHA, aus validiertem `owner/repo`. Schema und Host sind fest, Pfade
+prozentkodiert. Die Web-App rendert zusätzlich nur `https://`-Links, mit
+`rel="noopener noreferrer"`.
+
+**Last.** Ein großer Import nutzt die bestehenden Limits: `MAX_UPLOAD_FILES`,
+`MAX_UPLOAD_REQUEST_BYTES`, `RATE_LIMIT_UPLOAD_MAX` und optional `MAX_DOCUMENTS_PER_COLLECTION`.
+Das CLI wartet nach `429` gemäß `Retry-After`. Die Standardwerte bleiben unverändert (≈ 600
+Dateien/min).
+

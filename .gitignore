@@ -21,3 +21,6 @@ coverage/
 
 # Evaluation results (pnpm eval)
 eval/results/
+
+# Output of the former `pnpm kb:collect` (replaced by `pnpm kb:import`); safe to delete
+/kb-import/

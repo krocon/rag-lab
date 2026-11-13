@@ -5,6 +5,7 @@ import {
   collections,
   documents,
   type Collection,
+  type CollectionSourceRecord,
   type DocumentStatus,
 } from '../../db/schema.js';
 
@@ -42,6 +43,7 @@ export interface NewCollectionRecord {
 export interface CollectionPatch {
   name?: string;
   description?: string | null;
+  source?: CollectionSourceRecord | null;
 }
 
 /** Persistence of collections. Unique violations surface as PostgreSQL errors (23505). */
@@ -78,6 +80,7 @@ export function createCollectionsRepository(db: Database): CollectionsRepository
         embeddingProvider: collections.embeddingProvider,
         embeddingModel: collections.embeddingModel,
         embeddingDimensions: collections.embeddingDimensions,
+        source: collections.source,
         createdAt: collections.createdAt,
         updatedAt: collections.updatedAt,
         ...statsColumns,

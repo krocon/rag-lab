@@ -46,6 +46,7 @@ Grundgerüsts ausgeführt werden.
 | 014 | [014-mcp-server.md](done/014-mcp-server.md) | MCP-Server mit vier lesenden Tools | 008 (012, 013 empfohlen) | `apps/mcp` (stdio), `list_collections`, `search_knowledge`, `get_document`, `ask_knowledge`, ADR 0003 | ✅ erledigt |
 | 015 | [015-docker-ci-release.md](done/015-docker-ci-release.md) | Produktionsnahe Container, CI, Versionierung | 012 (013, 014 empfohlen) | Non-root-Images, Migrations-Service, CI-Jobs, Release-Workflow, CHANGELOG | ✅ erledigt |
 | 016 | [016-documentation-and-demo.md](done/016-documentation-and-demo.md) | README, Screenshots, Demo-Datensatz, Video-Drehbuch | 015 (mind. 011) | Konsolidierte Docs, `pnpm demo:seed`, `docs/demo/video-script.md` | ✅ erledigt |
+| 017 | [017-source-code-import.md](017-source-code-import.md) | Lokales Verzeichnis oder Git-URL inkl. Quellcode importieren | 008, 011, 012, 014 | `pnpm kb:import`, Code-Chunking mit Pfad und Zeilen, Quellen als `Pfad:Zeilen`, ADR 0004 | ⬜ offen |
 
 ## Empfohlene Reihenfolge
 

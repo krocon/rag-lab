@@ -15,6 +15,8 @@ const info: SystemInfoResponse = {
   upload: {
     maxFileBytes: 5_242_880,
     maxFiles: 20,
+    maxRequestBytes: 52_428_800,
+    maxDocumentsPerCollection: null,
     allowedExtensions: ['.md', '.markdown', '.txt'],
   },
 };

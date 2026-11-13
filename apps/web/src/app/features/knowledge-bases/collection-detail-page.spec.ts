@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { type HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -67,12 +67,27 @@ describe('CollectionDetailPage', () => {
     providers: ProvidersStatusResponse = providersOk,
   ): Promise<void> {
     http.expectOne(COLLECTION_URL).flush(collection());
-    http.expectOne(DOCUMENTS_URL).flush({ items: documents });
+    expectDocuments().flush(page(documents));
     http.expectOne('/api/system/providers').flush(providers);
     await render();
     http.expectOne('/api/system/info').flush(systemInfo);
     await render();
   }
+
+  const isDocumentsRequest = (req: HttpRequest<unknown>) =>
+    req.method === 'GET' && req.url === DOCUMENTS_URL;
+
+  /** The next document list request; checks page size, offset and path filter. */
+  function expectDocuments(expected: { pathPrefix?: string; offset?: number } = {}) {
+    const request = http.expectOne(isDocumentsRequest);
+    const params = request.request.params;
+    expect(params.get('limit')).toBe('100');
+    expect(params.get('offset')).toBe(String(expected.offset ?? 0));
+    expect(params.get('pathPrefix')).toBe(expected.pathPrefix ?? null);
+    return request;
+  }
+
+  const page = (items: DocumentDto[], total = items.length) => ({ items, total });
 
   const button = (name: string, root: ParentNode = element) =>
     Array.from(root.querySelectorAll('button')).find((b) => text(b).includes(name));
@@ -106,7 +121,7 @@ describe('CollectionDetailPage', () => {
     expect(text(table?.querySelector('caption'))).toBe('Documents: 2 documents, 1 failed');
     expect(
       Array.from(table?.querySelectorAll('thead th') ?? []).map((th) => th.getAttribute('scope')),
-    ).toEqual(['col', 'col', 'col', 'col', 'col', 'col']);
+    ).toEqual(['col', 'col', 'col', 'col', 'col', 'col', 'col']);
     const rows = Array.from(table?.querySelectorAll('tbody tr') ?? []);
     expect(text(rows[0])).toContain('Ready');
     expect(text(rows[0])).toContain('2 KiB');
@@ -115,6 +130,158 @@ describe('CollectionDetailPage', () => {
     // Reindex only for failed documents; accessible names include the file name.
     expect(button('Reindex', required(rows[0]))).toBeUndefined();
     expect(text(button('Reindex', required(rows[1])))).toBe('↻ Reindex broken.md');
+  });
+
+  it('shows path (falling back to the file name) and language columns', async () => {
+    await load([
+      documentDto({
+        id: 'code-id',
+        filename: 'tree.ts',
+        path: 'packages/table/src/tree.ts',
+        language: 'typescript',
+      }),
+      documentDto(),
+    ]);
+
+    const headers = Array.from(element.querySelectorAll('thead th')).map((th) => text(th));
+    expect(headers.slice(0, 2)).toEqual(['Path', 'Language']);
+    const rows = Array.from(element.querySelectorAll('tbody tr'));
+    expect(text(rows[0]?.querySelector('th'))).toBe('packages/table/src/tree.ts');
+    expect(text(rows[0]?.querySelector('td'))).toBe('typescript');
+    expect(text(rows[1]?.querySelector('th'))).toBe('notes.md');
+    expect(text(rows[1]?.querySelector('td'))).toBe('markdown');
+    expect(text(element.querySelector('[data-testid="page-range"]'))).toBe('1–2 of 2');
+    // A single page needs no page buttons.
+    expect(button('Next')).toBeUndefined();
+  });
+
+  it('shows the import source of a repository import', async () => {
+    http.expectOne(COLLECTION_URL).flush(
+      collection({
+        source: {
+          kind: 'git',
+          url: 'https://github.com/owner/repo',
+          ref: 'main',
+          commit: '0123456789abcdef0123456789abcdef01234567',
+          importedAt: '2026-11-10T12:00:00.000Z',
+        },
+      }),
+    );
+    expectDocuments().flush(page([]));
+    http.expectOne('/api/system/providers').flush(providersOk);
+    await render();
+    http.expectOne('/api/system/info').flush(systemInfo);
+    await render();
+
+    const facts = text(element.querySelector('dl'));
+    expect(facts).toContain('Git repository');
+    expect(facts).toContain('Refmain');
+    expect(facts).toContain('2026');
+    const link = element.querySelector<HTMLAnchorElement>('[data-testid="import-source"] a');
+    expect(link?.getAttribute('href')).toBe('https://github.com/owner/repo');
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+    const commit = element.querySelector('[data-testid="import-commit"]');
+    expect(text(commit)).toBe('0123456789ab');
+    expect(commit?.getAttribute('title')).toBe('0123456789abcdef0123456789abcdef01234567');
+  });
+
+  it('shows a directory import without a link and hides the source when unknown', async () => {
+    http.expectOne(COLLECTION_URL).flush(
+      collection({
+        source: {
+          kind: 'directory',
+          url: null,
+          ref: null,
+          commit: null,
+          importedAt: '2026-11-10T12:00:00.000Z',
+        },
+      }),
+    );
+    expectDocuments().flush(page([]));
+    http.expectOne('/api/system/providers').flush(providersOk);
+    await render();
+    http.expectOne('/api/system/info').flush(systemInfo);
+    await render();
+
+    const source = element.querySelector('[data-testid="import-source"]');
+    expect(text(source)).toBe('Local directory');
+    expect(source?.querySelector('a')).toBeNull();
+    expect(text(element.querySelector('dl'))).not.toContain('Commit');
+  });
+
+  it('filters by path prefix on the server and clears the filter', async () => {
+    await load([documentDto()]);
+    expect(text(element.querySelector('dl'))).not.toContain('Imported from');
+
+    const input = required(element.querySelector<HTMLInputElement>('input[name="pathPrefix"]'));
+    input.value = '  packages/table/ ';
+    required(element.querySelector('form[role="search"]')).dispatchEvent(
+      new Event('submit', { cancelable: true }),
+    );
+    TestBed.tick();
+    expectDocuments({ pathPrefix: 'packages/table/' }).flush(page([]));
+    await render();
+    expect(text(element.querySelector('[data-testid="no-matches"]'))).toContain(
+      'No document path starts with “packages/table/”',
+    );
+
+    button('Clear filter')?.click();
+    TestBed.tick();
+    expectDocuments().flush(page([documentDto()]));
+    await render();
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
+  });
+
+  it('pages through large collections with previous/next', async () => {
+    const many = Array.from({ length: 100 }, (_, i) =>
+      documentDto({ id: `doc-${i}`, filename: `f${i}.ts`, path: `src/f${i}.ts` }),
+    );
+    http.expectOne(COLLECTION_URL).flush(collection({ documentCount: 250 }));
+    expectDocuments().flush(page(many, 250));
+    http.expectOne('/api/system/providers').flush(providersOk);
+    await render();
+    http.expectOne('/api/system/info').flush(systemInfo);
+    await render();
+
+    expect(text(element.querySelector('[data-testid="page-range"]'))).toBe('1–100 of 250');
+    expect(text(element.querySelector('caption'))).toBe('Documents: 250 documents, showing 1–100');
+    expect(button('Previous')?.disabled).toBe(true);
+
+    button('Next')?.click();
+    TestBed.tick();
+    expectDocuments({ offset: 100 }).flush(page(many, 250));
+    await render();
+    button('Next')?.click();
+    TestBed.tick();
+    expectDocuments({ offset: 200 }).flush(page(many.slice(0, 50), 250));
+    await render();
+
+    expect(text(element.querySelector('[data-testid="page-range"]'))).toBe('201–250 of 250');
+    expect(button('Next')?.disabled).toBe(true);
+
+    button('Previous')?.click();
+    TestBed.tick();
+    expectDocuments({ offset: 100 }).flush(page(many, 250));
+    await render();
+  });
+
+  it('goes back to the last page when the current one became empty', async () => {
+    const many = Array.from({ length: 100 }, (_, i) => documentDto({ id: `doc-${i}` }));
+    http.expectOne(COLLECTION_URL).flush(collection());
+    expectDocuments().flush(page(many, 101));
+    http.expectOne('/api/system/providers').flush(providersOk);
+    await render();
+    http.expectOne('/api/system/info').flush(systemInfo);
+    await render();
+
+    button('Next')?.click();
+    TestBed.tick();
+    // The only document of page 2 was deleted in the meantime.
+    expectDocuments({ offset: 100 }).flush(page([], 100));
+    await render();
+    expectDocuments({ offset: 0 }).flush(page(many, 100));
+    await render();
+    expect(text(element.querySelector('[data-testid="page-range"]'))).toBe('1–100 of 100');
   });
 
   it('shows an empty state without documents', async () => {
@@ -142,14 +309,14 @@ describe('CollectionDetailPage', () => {
     await load([documentDto({ status: 'pending', chunkCount: 0 })]);
     expect(element.querySelector('[data-testid="polling-indicator"]')).not.toBeNull();
 
-    http.expectNone(DOCUMENTS_URL);
+    http.expectNone(isDocumentsRequest);
     await elapse(2000);
-    http.expectOne(DOCUMENTS_URL).flush({ items: [documentDto({ status: 'processing' })] });
+    expectDocuments().flush(page([documentDto({ status: 'processing' })]));
     await render();
     expect(text(element.querySelector('tbody'))).toContain('Processing');
 
     await elapse(2000);
-    http.expectOne(DOCUMENTS_URL).flush({ items: [documentDto({ status: 'ready' })] });
+    expectDocuments().flush(page([documentDto({ status: 'ready' })]));
     await render();
     // A finished document changes the counts in the header.
     http.expectOne(COLLECTION_URL).flush(collection({ readyDocumentCount: 2 }));
@@ -160,7 +327,7 @@ describe('CollectionDetailPage', () => {
     expect(element.querySelector('[data-testid="polling-indicator"]')).toBeNull();
 
     await elapse(10_000);
-    http.expectNone(DOCUMENTS_URL);
+    http.expectNone(isDocumentsRequest);
   });
 
   it('stops polling when the page is left', async () => {
@@ -169,7 +336,7 @@ describe('CollectionDetailPage', () => {
     fixture.destroy();
     await elapse(10_000);
 
-    http.expectNone(DOCUMENTS_URL);
+    http.expectNone(isDocumentsRequest);
   });
 
   it('reindexes a failed document and starts polling again', async () => {
@@ -185,7 +352,7 @@ describe('CollectionDetailPage', () => {
 
     expect(text(element.querySelector('tbody'))).toContain('Pending');
     await elapse(2000);
-    http.expectOne(DOCUMENTS_URL).flush({ items: [documentDto({ status: 'failed' })] });
+    expectDocuments().flush(page([documentDto({ status: 'failed' })]));
     await render();
     http.expectOne(COLLECTION_URL).flush(collection());
   });
@@ -242,7 +409,7 @@ describe('CollectionDetailPage', () => {
       .expectOne({ method: 'DELETE', url: `/api/documents/${DOCUMENT_ID}` })
       .flush(null, { status: 204, statusText: 'No Content' });
     await render();
-    http.expectOne(DOCUMENTS_URL).flush({ items: [] });
+    expectDocuments().flush(page([]));
     http.expectOne(COLLECTION_URL).flush(collection({ documentCount: 0 }));
     await render();
 
@@ -277,12 +444,10 @@ describe('CollectionDetailPage', () => {
         status: 404,
         statusText: 'Not Found',
       });
-    http
-      .expectOne(DOCUMENTS_URL)
-      .flush(apiError('COLLECTION_NOT_FOUND', 'Collection does not exist'), {
-        status: 404,
-        statusText: 'Not Found',
-      });
+    expectDocuments().flush(apiError('COLLECTION_NOT_FOUND', 'Collection does not exist'), {
+      status: 404,
+      statusText: 'Not Found',
+    });
     http.expectOne('/api/system/providers').flush(providersOk);
     await render();
 

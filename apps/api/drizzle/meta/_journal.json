@@ -15,6 +15,13 @@
       "when": 1793608193622,
       "tag": "0001_domain_model",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794423783758,
+      "tag": "0002_source_import",
+      "breakpoints": true
     }
   ]
 }

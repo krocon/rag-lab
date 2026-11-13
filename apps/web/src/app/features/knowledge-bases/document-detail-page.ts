@@ -13,18 +13,30 @@ import {
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import type { DocumentStatus } from '@raglab/shared';
+import type { ChunkDto, DocumentDto, DocumentStatus } from '@raglab/shared';
 import { firstValueFrom } from 'rxjs';
 import { ApiRequestError, toApiRequestError } from '../../core/api/api-error';
 import { KnowledgeApi } from '../../core/api/knowledge-api';
 import { formatBytes, plural } from '../../core/util/format';
 import { pollWhile } from '../../core/util/polling';
+import { formatSourceLocation, isCodeLanguage } from '../../core/util/source-location';
 import { ConfirmDialog } from '../../shared/ui/confirm-dialog';
 import { DocumentStatusBadge, isActiveStatus } from './document-status';
 
+/** One line of the code view: number, text and the chunks starting at it. */
+interface CodeLine {
+  number: number;
+  text: string;
+  /** `chunkIndex` of every chunk whose `startLine` is this line (chunk boundaries). */
+  chunkStarts: number[];
+  /** Part of the deep-linked chunk (`?chunk=`). */
+  linked: boolean;
+}
+
 /**
  * `/knowledge-bases/:collectionId/documents/:documentId[?chunk=<chunkId>]`: metadata, normalised
- * full text (rendered as text, never as HTML) and chunks. `?chunk=` scrolls to and highlights a
+ * full text (rendered as text, never as HTML; source code in monospace with line numbers and chunk
+ * boundaries) and chunks. `?chunk=` scrolls to and highlights a
  * chunk – used by chat (010) and playground (011) to link sources.
  */
 @Component({
@@ -67,6 +79,11 @@ import { DocumentStatusBadge, isActiveStatus } from './document-status';
       <header class="rl-page-header">
         <div>
           <h1>{{ doc.filename }}</h1>
+          @if (doc.path) {
+            <p class="doc-path" data-testid="document-path">
+              <code>{{ doc.path }}</code>
+            </p>
+          }
           @if (doc.metadata.title; as title) {
             <p class="rl-muted">Title: {{ title }}</p>
           }
@@ -107,6 +124,14 @@ import { DocumentStatusBadge, isActiveStatus } from './document-status';
               <p class="error-message">{{ doc.errorMessage }}</p>
             }
           </dd>
+          @if (doc.path) {
+            <dt>Path</dt>
+            <dd>
+              <code class="hash">{{ doc.path }}</code>
+            </dd>
+          }
+          <dt>Language</dt>
+          <dd>{{ doc.language }}</dd>
           <dt>Size</dt>
           <dd>{{ size(doc.sizeBytes) }} ({{ doc.sizeBytes }} bytes)</dd>
           <dt>MIME type</dt>
@@ -144,6 +169,35 @@ import { DocumentStatusBadge, isActiveStatus } from './document-status';
             </p>
             <button type="button" class="rl-btn" (click)="content.reload()">Try again</button>
           </div>
+        } @else if (content.hasValue() && isCode()) {
+          <div
+            class="fulltext code"
+            tabindex="0"
+            role="region"
+            aria-label="Source code with line numbers"
+            data-testid="code-view"
+          >
+            @for (line of codeLines(); track line.number) {
+              @for (index of line.chunkStarts; track index) {
+                <div class="code__boundary" data-testid="chunk-boundary">
+                  Chunk #{{ index }} starts at line {{ line.number }}
+                </div>
+              }
+              <div
+                class="code__line"
+                [class.code__line--linked]="line.linked"
+                [attr.data-line]="line.number"
+              >
+                <span class="code__ln" aria-hidden="true" [style.min-width.ch]="lineDigits()">{{
+                  line.number
+                }}</span>
+                <span class="code__text">{{ line.text }}</span>
+              </div>
+            }
+          </div>
+          <p class="rl-muted small">
+            {{ count(codeLines().length, 'line') }}, {{ content.value().content.length }} characters
+          </p>
         } @else if (content.hasValue()) {
           <pre
             class="fulltext"
@@ -226,6 +280,20 @@ import { DocumentStatusBadge, isActiveStatus } from './document-status';
                     >
                   </div>
                   <dl class="rl-dl chunk__meta">
+                    @if (chunk.startLine !== null) {
+                      <dt>Location</dt>
+                      <dd>
+                        <code class="hash" data-testid="chunk-location">{{
+                          location(doc, chunk)
+                        }}</code>
+                      </dd>
+                    }
+                    @if (chunk.symbol) {
+                      <dt>Symbol</dt>
+                      <dd>
+                        <code class="hash">{{ chunk.symbol }}</code>
+                      </dd>
+                    }
                     <dt>Offsets</dt>
                     <dd>{{ chunk.startOffset }}–{{ chunk.endOffset }}</dd>
                     <dt>Characters</dt>
@@ -235,20 +303,24 @@ import { DocumentStatusBadge, isActiveStatus } from './document-status';
                         <span class="rl-muted">(≈ {{ chunk.tokenEstimate }} tokens, estimate)</span>
                       }
                     </dd>
-                    <dt>Heading path</dt>
-                    <dd>
-                      @if (chunk.headingPath.length > 0) {
-                        {{ chunk.headingPath.join(' › ') }}
-                      } @else {
-                        <span class="rl-muted">none</span>
-                      }
-                    </dd>
+                    @if (!isCode()) {
+                      <dt>Heading path</dt>
+                      <dd>
+                        @if (chunk.headingPath.length > 0) {
+                          {{ chunk.headingPath.join(' › ') }}
+                        } @else {
+                          <span class="rl-muted">none</span>
+                        }
+                      </dd>
+                    }
                     @if (chunk.overlapChars > 0) {
                       <dt>Overlap</dt>
                       <dd>{{ chunk.overlapChars }} characters from the previous chunk</dd>
                     }
                   </dl>
-                  <pre class="chunk__content">{{ chunk.content }}</pre>
+                  <pre class="chunk__content" [class.chunk__content--code]="isCode()">{{
+                    chunk.content
+                  }}</pre>
                 </li>
               }
             </ol>
@@ -295,6 +367,51 @@ import { DocumentStatusBadge, isActiveStatus } from './document-status';
       background: var(--rl-surface-muted);
       border: 1px solid var(--rl-border);
       border-radius: 6px;
+    }
+    .doc-path {
+      margin: 0.25rem 0 0;
+      overflow-wrap: anywhere;
+    }
+    .code {
+      font-family: var(--rl-mono);
+      font-size: 0.85rem;
+      line-height: 1.45;
+      max-height: 36rem;
+    }
+    .code__line {
+      display: flex;
+      align-items: baseline;
+    }
+    .code__line--linked {
+      background: var(--rl-accent-soft);
+    }
+    .code__ln {
+      flex: none;
+      text-align: right;
+      padding-right: 0.9rem;
+      color: var(--rl-text-muted);
+      user-select: none;
+    }
+    .code__text {
+      white-space: pre;
+    }
+    .code__boundary {
+      margin: 0.35rem 0 0.15rem;
+      padding-top: 0.15rem;
+      border-top: 1px dashed var(--rl-accent);
+      color: var(--rl-accent);
+      font-family: var(--rl-font);
+      font-size: 0.75rem;
+      user-select: none;
+    }
+    .code__boundary:first-child {
+      margin-top: 0;
+    }
+    .chunk__content--code {
+      white-space: pre;
+      overflow-wrap: normal;
+      overflow-x: auto;
+      font-size: 0.85rem;
     }
     .small {
       font-size: 0.85rem;
@@ -354,6 +471,13 @@ export class DocumentDetailPage {
   protected readonly count = plural;
   protected readonly isActive = isActiveStatus;
   protected readonly chunkParam = computed(() => this.chunk() || undefined);
+  protected readonly location = (doc: DocumentDto, chunk: ChunkDto) =>
+    formatSourceLocation({
+      filename: doc.filename,
+      path: doc.path,
+      startLine: chunk.startLine,
+      endLine: chunk.endLine,
+    });
 
   protected readonly collection = rxResource({
     params: () => this.collectionId(),
@@ -380,6 +504,46 @@ export class DocumentDetailPage {
     }
     return this.document.hasValue() && this.document.value().collectionId !== this.collectionId();
   });
+
+  /** Source code (not Markdown/plain text): monospace view with line numbers. */
+  protected readonly isCode = computed(
+    () => this.document.hasValue() && isCodeLanguage(this.document.value().language),
+  );
+
+  protected readonly codeLines = computed<CodeLine[]>(() => {
+    if (!this.isCode() || !this.content.hasValue()) {
+      return [];
+    }
+    const lines = this.content.value().content.split('\n');
+    if (lines.length > 1 && lines[lines.length - 1] === '') {
+      lines.pop();
+    }
+    const chunks = this.chunks.hasValue() ? this.chunks.value().chunks : [];
+    const starts = new Map<number, number[]>();
+    for (const chunk of chunks) {
+      if (chunk.startLine !== null) {
+        starts.set(chunk.startLine, [...(starts.get(chunk.startLine) ?? []), chunk.chunkIndex]);
+      }
+    }
+    const linkedChunk = chunks.find((chunk) => chunk.id === this.chunkParam());
+    const linkedStart = linkedChunk?.startLine ?? null;
+    const linkedEnd = linkedChunk?.endLine ?? null;
+    return lines.map((text, i) => {
+      const number = i + 1;
+      return {
+        number,
+        text,
+        chunkStarts: starts.get(number) ?? [],
+        linked:
+          linkedStart !== null &&
+          linkedEnd !== null &&
+          number >= linkedStart &&
+          number <= linkedEnd,
+      };
+    });
+  });
+
+  protected readonly lineDigits = computed(() => String(this.codeLines().length).length);
 
   protected readonly embeddedCount = computed(() =>
     this.chunks.hasValue() ? this.chunks.value().chunks.filter((c) => c.hasEmbedding).length : 0,

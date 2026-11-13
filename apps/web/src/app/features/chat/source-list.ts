@@ -1,17 +1,21 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { ChatSource } from '@raglab/shared';
+import { formatSourceLocation, isCodeLanguage } from '../../core/util/source-location';
+import { ExternalLink } from '../../shared/ui/external-link';
 
 /** Characters of a chunk shown before "Show full passage". */
 export const SNIPPET_CHARS = 280;
 
 /**
- * The sources an answer was given, numbered like the citations `[n]`: file, heading path, score,
- * excerpt and a deep link to the chunk in the document view. All content is rendered as text.
+ * The sources an answer was given, numbered like the citations `[n]`: `path:lines` (file name as
+ * fallback), language, symbol or heading path, score, excerpt, a deep link to the chunk in the
+ * document view and – for repository imports – a link to the lines at the imported commit.
+ * All content is rendered as text.
  */
 @Component({
   selector: 'rl-source-list',
-  imports: [RouterLink],
+  imports: [RouterLink, ExternalLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="sources" [attr.aria-labelledby]="headingId()">
@@ -34,7 +38,7 @@ export const SNIPPET_CHARS = 280;
           >
             <div class="source__header">
               <h4 [id]="headingId() + '-' + source.n">
-                <span class="source__n">[{{ source.n }}]</span> {{ source.filename }}
+                <span class="source__n">[{{ source.n }}]</span> {{ location(source) }}
               </h4>
               @if (selected) {
                 <span class="rl-badge rl-badge--info"
@@ -52,7 +56,14 @@ export const SNIPPET_CHARS = 280;
               }
             </div>
             <dl class="rl-dl meta">
-              @if (source.headingPath.length > 0) {
+              <dt>Language</dt>
+              <dd>{{ source.language }}</dd>
+              @if (source.symbol) {
+                <dt>Symbol</dt>
+                <dd>
+                  <code>{{ source.symbol }}</code>
+                </dd>
+              } @else if (source.headingPath.length > 0 && !isCode(source.language)) {
                 <dt>Section</dt>
                 <dd>{{ source.headingPath.join(' › ') }}</dd>
               }
@@ -80,6 +91,9 @@ export const SNIPPET_CHARS = 280;
               [attr.aria-label]="'Open source ' + source.n + ' in ' + source.filename"
               >Open in document <span aria-hidden="true">→</span></a
             >
+            @if (source.sourceUrl) {
+              <span class="external"><rl-external-link [url]="source.sourceUrl" /></span>
+            }
           </li>
         }
       </ol>
@@ -148,8 +162,12 @@ export const SNIPPET_CHARS = 280;
       cursor: pointer;
       margin-bottom: 0.4rem;
     }
-    .open {
+    .open,
+    .external {
       font-size: 0.9rem;
+    }
+    .external {
+      margin-left: 1rem;
     }
   `,
 })
@@ -166,6 +184,8 @@ export class SourceList {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly snippetChars = SNIPPET_CHARS;
+  protected readonly location = formatSourceLocation;
+  protected readonly isCode = isCodeLanguage;
 
   protected snippet(content: string): string {
     return `${content.slice(0, SNIPPET_CHARS).trimEnd()}…`;

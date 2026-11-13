@@ -1,0 +1,55 @@
+{
+  "options": {
+    "targetSize": 600,
+    "overlap": 120,
+    "format": "code",
+    "language": "vue"
+  },
+  "chunks": [
+    {
+      "chunkIndex": 0,
+      "content": "<!-- Sample single-file component for the RAGLab code chunker golden test (self-written, MIT). -->\n<template>\n  <table class=\"tree-table\">\n    <tbody>\n      <tr v-for=\"item in visible\" :key=\"item.row.id\" @click=\"toggle(item.row.id)\">\n        <td :style=\"{ paddingLeft: `${item.depth * indent}px` }\">\n          <span v-if=\"item.row.children?.length\">{{ item.row.expanded ? '▾' : '▸' }}</span>\n          {{ item.row.data.name }}\n        </td>\n      </tr>\n    </tbody>\n  </table>\n</template>",
+      "startOffset": 0,
+      "endOffset": 488,
+      "charCount": 488,
+      "tokenEstimate": 122,
+      "headingPath": [
+        "<template>"
+      ],
+      "overlapChars": 0,
+      "startLine": 1,
+      "endLine": 13,
+      "symbol": "<template>"
+    },
+    {
+      "chunkIndex": 1,
+      "content": "<script setup lang=\"ts\">\nimport { computed, ref } from 'vue';\nimport { createTreeTableModel } from './tree-table';\n\ninterface Person {\n  id: number;\n  parentId?: number;\n  name: string;\n}\n\nconst props = defineProps<{ people: Person[]; indent?: number }>();\n\nconst model = ref(createTreeTableModel(props.people));\nconst indent = computed(() => props.indent ?? 16);\nconst visible = computed(() => model.value.visibleRows());\n\nfunction toggle(id: number) {\n  model.value.toggle(id);\n}\n</script>",
+      "startOffset": 490,
+      "endOffset": 981,
+      "charCount": 491,
+      "tokenEstimate": 123,
+      "headingPath": [
+        "<script>, interface Person, const props, …"
+      ],
+      "overlapChars": 0,
+      "startLine": 15,
+      "endLine": 34,
+      "symbol": "<script>, interface Person, const props, …"
+    },
+    {
+      "chunkIndex": 2,
+      "content": "<style scoped>\n.tree-table {\n  border-collapse: collapse;\n  width: 100%;\n}\n\n.tree-table td {\n  padding: 4px 8px;\n  cursor: pointer;\n}\n</style>",
+      "startOffset": 983,
+      "endOffset": 1125,
+      "charCount": 142,
+      "tokenEstimate": 36,
+      "headingPath": [
+        "<style>"
+      ],
+      "overlapChars": 0,
+      "startLine": 36,
+      "endLine": 46,
+      "symbol": "<style>"
+    }
+  ]
+}

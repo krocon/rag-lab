@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { PlaygroundResult } from '@raglab/shared';
+import { formatSourceLocation, isCodeLanguage } from '../../core/util/source-location';
+import { ExternalLink } from '../../shared/ui/external-link';
 
 export type ChatContextStatus = 'included' | 'below-min-score' | 'outside-budget';
 
@@ -18,13 +20,15 @@ export function scoreBarPercent(score: number): number {
 }
 
 /**
- * Ranked results as a semantic table: rank, score (number + bar), distance, source, chunk and
- * what chat would do with it. Each row expands to the full chunk text (rendered as text only),
- * its offsets and a deep link to the chunk in the document view.
+ * Ranked results as a semantic table: rank, score (number + bar), distance, source (`path:lines`,
+ * language, symbol or heading path), chunk and what chat would do with it. Each row expands to
+ * exactly what was embedded – the embedded header (if any) and the chunk text, rendered as text
+ * only – its offsets, a deep link to the chunk in the document view and, for repository imports,
+ * a link to the lines at the imported commit.
  */
 @Component({
   selector: 'rl-playground-results',
-  imports: [RouterLink],
+  imports: [RouterLink, ExternalLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <p id="pg-score-help" class="help">
@@ -69,10 +73,15 @@ export function scoreBarPercent(score: number): number {
               </td>
               <td class="num">{{ result.distance.toFixed(3) }}</td>
               <th scope="row" class="source">
-                <span class="source__file">{{ result.filename }}</span>
-                @if (result.headingPath.length > 0) {
-                  <span class="source__path">{{ result.headingPath.join(' › ') }}</span>
-                }
+                <span class="source__file">{{ location(result) }}</span>
+                <span class="source__path">
+                  <span class="source__lang">{{ result.language }}</span>
+                  @if (result.symbol) {
+                    · <code>{{ result.symbol }}</code>
+                  } @else if (result.headingPath.length > 0 && !isCode(result.language)) {
+                    · {{ result.headingPath.join(' › ') }}
+                  }
+                </span>
               </th>
               <td class="num">#{{ result.chunkIndex }}</td>
               <td>
@@ -127,7 +136,20 @@ export function scoreBarPercent(score: number): number {
                       <code>{{ result.chunkId }}</code>
                     </dd>
                   </dl>
-                  <p class="excerpt">{{ result.content }}</p>
+                  @if (result.embeddingHeader !== null) {
+                    <p class="part-label" [id]="detailId(result) + '-header'">
+                      Embedded header
+                      <span class="rl-muted">(embedded in front of the chunk text)</span>
+                    </p>
+                    <pre
+                      class="excerpt excerpt--header"
+                      data-testid="embedding-header"
+                      [attr.aria-labelledby]="detailId(result) + '-header'"
+                      >{{ result.embeddingHeader }}</pre>
+                    <p class="part-label">Chunk text</p>
+                  }
+                  @let code = isCode(result.language);
+                  <p class="excerpt" [class.excerpt--code]="code">{{ result.content }}</p>
                   <a
                     [routerLink]="[
                       '/knowledge-bases',
@@ -138,6 +160,9 @@ export function scoreBarPercent(score: number): number {
                     [queryParams]="{ chunk: result.chunkId }"
                     >Open chunk in {{ result.filename }} <span aria-hidden="true">→</span></a
                   >
+                  @if (result.sourceUrl) {
+                    <span class="external"><rl-external-link [url]="result.sourceUrl" /></span>
+                  }
                 </td>
               </tr>
             }
@@ -214,6 +239,26 @@ export function scoreBarPercent(score: number): number {
       border-radius: 6px;
       max-height: 24rem;
       overflow-y: auto;
+      margin: 0 0 0.5rem;
+    }
+    .excerpt--code,
+    .excerpt--header {
+      font-family: var(--rl-mono);
+      font-size: 0.85rem;
+    }
+    .excerpt--header {
+      border-style: dashed;
+    }
+    .part-label {
+      margin: 0 0 0.25rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .source__file {
+      overflow-wrap: anywhere;
+    }
+    .external {
+      margin-left: 1rem;
     }
   `,
 })
@@ -224,6 +269,8 @@ export class PlaygroundResults {
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
   protected readonly statusOf = chatContextStatus;
   protected readonly barPercent = scoreBarPercent;
+  protected readonly location = formatSourceLocation;
+  protected readonly isCode = isCodeLanguage;
 
   /** Ids of results that are shown, so new results start collapsed. */
   private readonly ids = computed(() => new Set(this.results().map((result) => result.chunkId)));

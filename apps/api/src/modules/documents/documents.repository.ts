@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   documents,
@@ -18,15 +18,35 @@ export type DocumentMetadata = Omit<Document, 'content'>;
 /** Name of the unique index that enforces "same content only once per collection". */
 export const DOCUMENT_CONTENT_UNIQUE_INDEX = 'documents_collection_id_content_sha256_unique';
 
+/** Name of the unique index that enforces "one document per path and collection". */
+export const DOCUMENT_PATH_UNIQUE_INDEX = 'documents_collection_id_path_unique';
+
+/** Filter and page of {@link DocumentsRepository.listByCollection}. */
+export interface DocumentListFilter {
+  /** Only documents whose path starts with this prefix (case-sensitive, literal). */
+  pathPrefix?: string | undefined;
+  /** Page size; `undefined` = all. */
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
 /** Fields of a new document; status (`pending`), counters and timestamps use DB defaults. */
 export type NewDocumentRecord = Pick<
   NewDocument,
-  'collectionId' | 'filename' | 'mimeType' | 'sizeBytes' | 'contentSha256' | 'content' | 'metadata'
+  | 'collectionId'
+  | 'filename'
+  | 'path'
+  | 'mimeType'
+  | 'sizeBytes'
+  | 'contentSha256'
+  | 'content'
+  | 'metadata'
 >;
 
 export interface ExistingDocumentRef {
   id: string;
   contentSha256: string;
+  path: string | null;
   status: DocumentStatus;
 }
 
@@ -36,11 +56,20 @@ export interface ExistingDocumentRef {
  * well, because this module owns the table.
  */
 export interface DocumentsRepository extends DocumentIndexingRepository, RecoveryRepository {
-  listByCollection(collectionId: string): Promise<DocumentMetadata[]>;
+  /**
+   * Documents of the collection ordered by path (documents without a path last, by upload time),
+   * filtered and paged; `total` counts all documents matching the filter.
+   */
+  listByCollection(
+    collectionId: string,
+    filter?: DocumentListFilter,
+  ): Promise<{ items: DocumentMetadata[]; total: number }>;
   findById(id: string): Promise<DocumentMetadata | undefined>;
   findContent(id: string): Promise<{ id: string; content: string } | undefined>;
   /** Documents of the collection whose content hash is one of `hashes`. */
   findByContentHashes(collectionId: string, hashes: string[]): Promise<ExistingDocumentRef[]>;
+  /** Documents of the collection whose path is one of `paths`. */
+  findByPaths(collectionId: string, paths: string[]): Promise<ExistingDocumentRef[]>;
   /** Inserts all records in one statement (all or nothing); row order is not guaranteed. */
   insertMany(records: NewDocumentRecord[]): Promise<DocumentMetadata[]>;
   /** Deletes the document; its chunks are removed by `ON DELETE CASCADE`. */
@@ -56,6 +85,7 @@ const metadataColumns = {
   id: documents.id,
   collectionId: documents.collectionId,
   filename: documents.filename,
+  path: documents.path,
   mimeType: documents.mimeType,
   sizeBytes: documents.sizeBytes,
   contentSha256: documents.contentSha256,
@@ -71,18 +101,42 @@ const indexingColumns = {
   id: documents.id,
   collectionId: documents.collectionId,
   filename: documents.filename,
+  path: documents.path,
   mimeType: documents.mimeType,
   content: documents.content,
 };
 
+const existingRefColumns = {
+  id: documents.id,
+  contentSha256: documents.contentSha256,
+  path: documents.path,
+  status: documents.status,
+};
+
 export function createDocumentsRepository(db: Database): DocumentsRepository {
   return {
-    listByCollection: (collectionId) =>
-      db
+    async listByCollection(collectionId, filter = {}) {
+      const conditions: SQL[] = [eq(documents.collectionId, collectionId)];
+      if (filter.pathPrefix !== undefined && filter.pathPrefix !== '') {
+        // starts_with() takes the prefix literally (no LIKE wildcards to escape).
+        conditions.push(sql`starts_with(${documents.path}, ${filter.pathPrefix})`);
+      }
+      const where = and(...conditions);
+      let query = db
         .select(metadataColumns)
         .from(documents)
-        .where(eq(documents.collectionId, collectionId))
-        .orderBy(documents.createdAt, documents.id),
+        .where(where)
+        .orderBy(sql`${documents.path} ASC NULLS LAST`, documents.createdAt, documents.id)
+        .$dynamic();
+      if (filter.limit !== undefined) {
+        query = query.limit(filter.limit).offset(filter.offset ?? 0);
+      }
+      const [items, totals] = await Promise.all([
+        query,
+        db.select({ total: count() }).from(documents).where(where),
+      ]);
+      return { items, total: totals[0]?.total ?? 0 };
+    },
 
     async findById(id) {
       const rows = await db.select(metadataColumns).from(documents).where(eq(documents.id, id));
@@ -102,15 +156,21 @@ export function createDocumentsRepository(db: Database): DocumentsRepository {
         return [];
       }
       return db
-        .select({
-          id: documents.id,
-          contentSha256: documents.contentSha256,
-          status: documents.status,
-        })
+        .select(existingRefColumns)
         .from(documents)
         .where(
           and(eq(documents.collectionId, collectionId), inArray(documents.contentSha256, hashes)),
         );
+    },
+
+    async findByPaths(collectionId, paths) {
+      if (paths.length === 0) {
+        return [];
+      }
+      return db
+        .select(existingRefColumns)
+        .from(documents)
+        .where(and(eq(documents.collectionId, collectionId), inArray(documents.path, paths)));
     },
 
     async insertMany(records) {

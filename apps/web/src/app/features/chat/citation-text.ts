@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import type { ChatSource } from '@raglab/shared';
+import { formatSourceLocation } from '../../core/util/source-location';
 import { segmentAnswer } from './citations';
 
 /**
@@ -100,6 +101,6 @@ export class CitationText {
 
   protected label(n: number): string {
     const source = this.byNumber().get(n);
-    return source ? `Source ${n}: ${source.filename}` : `Source ${n}`;
+    return source ? `Source ${n}: ${formatSourceLocation(source)}` : `Source ${n}`;
   }
 }

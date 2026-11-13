@@ -10,6 +10,7 @@ import { badRequest } from '../../http/errors.js';
 import { buildGroundedPrompt, NO_SOURCES_ANSWER } from '../chat/prompt-builder.js';
 import type { CollectionsService } from '../collections/collections.service.js';
 import { efSearchFor, ITERATIVE_SCAN_MODE } from '../retrieval/retrieval.repository.js';
+import { embeddingHeader } from '../embeddings/embedding-text.js';
 import { applyMinScore, type RetrievalService } from '../retrieval/retrieval.service.js';
 import { DISTANCE_OPERATOR } from '../retrieval/similarity.js';
 
@@ -79,6 +80,7 @@ export function createPlaygroundService({
         ...result,
         includedInChatContext: included.has(result.chunkId),
         belowMinScore: minScore !== null && result.score < minScore,
+        embeddingHeader: embeddingHeader(result),
       }));
       const belowMinScoreCount = search.results.length - chatResults.length;
       const emptyReason: RetrievalEmptyReason | undefined =

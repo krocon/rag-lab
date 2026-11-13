@@ -46,6 +46,8 @@ describe('GET /api/collections/:id/documents', () => {
         id: document.id,
         collectionId,
         filename: 'guide.md',
+        path: null,
+        language: 'markdown',
         mimeType: 'text/markdown',
         sizeBytes: 42,
         contentSha256: 'a'.repeat(64),

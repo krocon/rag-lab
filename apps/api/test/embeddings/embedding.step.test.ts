@@ -44,6 +44,9 @@ function draft(index: number, content = `chunk ${index}`): ChunkDraft {
     tokenEstimate: 2,
     headingPath: [],
     overlapChars: 0,
+    startLine: 1,
+    endLine: 1,
+    symbol: null,
   };
 }
 
@@ -70,7 +73,7 @@ async function setup({
   );
   const step = createEmbeddingStep({ provider, chunks, collections, columnDimensions });
   const context: IndexingContext = {
-    document: { ...document, filename: 'a.md', mimeType: 'text/markdown', content: 'x' },
+    document: { ...document, filename: 'a.md', path: null, mimeType: 'text/markdown', content: 'x' },
     chunkCount,
   };
   return { store, collections, collection, chunks, document, step, context, provider };
@@ -92,6 +95,19 @@ async function runError(promise: Promise<void>): Promise<IndexingError> {
 }
 
 describe('embedding step', () => {
+  it('embeds imported documents with a context header (path, symbol), content unchanged', async () => {
+    const { step, context, store, document, provider } = await setup({ chunkCount: 1 });
+    const [chunk] = store.chunks.get(document.id) ?? [];
+    if (chunk) {
+      chunk.metadata = { ...chunk.metadata, symbol: 'class Tree' };
+    }
+
+    await run(step, { ...context, document: { ...context.document, path: 'src/tree.ts' } });
+
+    expect(provider.calls).toEqual([['File: src/tree.ts\nSymbol: class Tree\n\nchunk 0']]);
+    expect(store.chunks.get(document.id)?.[0]?.content).toBe('chunk 0');
+  });
+
   it('embeds all chunks without a vector and stores the vectors', async () => {
     const { step, context, store, document, provider } = await setup();
 

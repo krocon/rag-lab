@@ -1,5 +1,6 @@
 import type { AppConfig } from '../../config/env.js';
 import { IndexingError, type IndexingStep } from '../ingestion/document-indexer.js';
+import { languageForMimeType } from '../ingestion/file-type.js';
 import { chunkingFormatFor, chunkText } from './chunker.js';
 import type { ChunksRepository } from './chunks.repository.js';
 
@@ -29,14 +30,24 @@ export function createChunkingStep({
     name: CHUNKING_STEP_NAME,
     async run(context, signal) {
       const { document } = context;
-      const drafts = chunk(document.content, {
+      const format = chunkingFormatFor(document.mimeType);
+      const chunked = chunk(document.content, {
         targetSize: options.targetSize,
         overlap: options.overlap,
-        format: chunkingFormatFor(document.mimeType),
+        format,
+        language: languageForMimeType(document.mimeType),
       });
-      if (drafts.length === 0) {
+      if (chunked.length === 0) {
         throw new IndexingError(NO_CHUNKS_MESSAGE);
       }
+      // Source code: the heading path is the file path, then the symbol (ADR 0004).
+      const drafts =
+        format === 'code'
+          ? chunked.map((draft) => ({
+              ...draft,
+              headingPath: [document.path ?? document.filename, ...draft.headingPath],
+            }))
+          : chunked;
       signal.throwIfAborted();
       await repository.replaceForDocument(document, drafts);
       context.chunkCount = drafts.length;

@@ -7,11 +7,46 @@ export interface DocumentMetadataFields {
   [key: string]: unknown;
 }
 
+/**
+ * Language of a document, derived from its file extension by the server (never from the client):
+ * `markdown` and `text` are prose, everything else is source code (ADR 0004).
+ */
+export type DocumentLanguage =
+  | 'markdown'
+  | 'text'
+  | 'typescript'
+  | 'javascript'
+  | 'vue'
+  | 'svelte'
+  | 'astro'
+  | 'html'
+  | 'css'
+  | 'scss'
+  | 'json'
+  | 'yaml'
+  | 'toml'
+  | 'shell'
+  | 'python'
+  | 'java'
+  | 'kotlin'
+  | 'go'
+  | 'rust'
+  | 'csharp'
+  | 'sql';
+
 /** Document metadata. The normalised text (`content`) is never part of this DTO. */
 export interface DocumentDto {
   id: string;
   collectionId: string;
+  /** Display name: the last segment of `path`, or the sanitised upload file name. */
   filename: string;
+  /**
+   * Relative path within the imported source (`packages/table/src/x.ts`), unique per collection;
+   * `null` for documents uploaded without a path. Display and metadata only.
+   */
+  path: string | null;
+  /** Derived from the extension (see {@link DocumentLanguage}). */
+  language: DocumentLanguage;
   mimeType: string;
   sizeBytes: number;
   contentSha256: string;
@@ -24,9 +59,26 @@ export interface DocumentDto {
   updatedAt: string;
 }
 
-/** Response of `GET /api/collections/:id/documents` (complete list, no pagination in the MVP). */
+/**
+ * Query of `GET /api/collections/:id/documents`. Without `limit` the complete (filtered) list is
+ * returned, as before prompt 017.
+ */
+export interface DocumentListQuery {
+  /** Only documents whose `path` starts with this prefix (case-sensitive). */
+  pathPrefix?: string;
+  /** Page size, 1..1000. */
+  limit?: number;
+  /** Number of documents to skip (with `limit`). */
+  offset?: number;
+}
+
+/**
+ * Response of `GET /api/collections/:id/documents`: documents ordered by `path` (documents without
+ * a path last, by upload time); `total` counts all documents matching the filter.
+ */
 export interface DocumentListResponse {
   items: DocumentDto[];
+  total: number;
 }
 
 /**
@@ -51,6 +103,8 @@ export type DocumentUploadErrorCode =
   | 'MALFORMED_MULTIPART'
   | 'COLLECTION_NOT_FOUND'
   | 'DUPLICATE_DOCUMENT'
+  | 'DUPLICATE_PATH'
+  | 'INVALID_PATH'
   | 'FILE_TOO_LARGE'
   | 'TOO_MANY_FILES'
   | 'UNSUPPORTED_FILE_TYPE'

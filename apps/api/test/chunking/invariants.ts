@@ -17,6 +17,49 @@ function wordLengthAt(text: string, position: number): number {
   return end - start;
 }
 
+/** 1-based line of `offset`. */
+export function lineOf(text: string, offset: number): number {
+  let line = 1;
+  for (let index = 0; index < offset; index++) {
+    if (text[index] === '\n') {
+      line++;
+    }
+  }
+  return line;
+}
+
+/** Length of the line that contains `position`. */
+function lineLengthAt(text: string, position: number): number {
+  const start = text.lastIndexOf('\n', position - 1) + 1;
+  const end = text.indexOf('\n', position);
+  return (end === -1 ? text.length : end) - start;
+}
+
+/**
+ * Additional guarantees of `format: 'code'` (ADR 0004): a chunk ends at a line end (followed by
+ * optional spaces/tabs and a line break or the end of the text) unless its last line is longer
+ * than `targetSize` (minified code); the overlap starts at the beginning of a line.
+ */
+export function expectCodeInvariants(
+  text: string,
+  chunks: ChunkDraft[],
+  { targetSize }: Pick<ChunkingOptions, 'targetSize'>,
+): void {
+  chunks.forEach((chunk, index) => {
+    const where = `chunk ${index}`;
+    const rest = text.slice(chunk.endOffset);
+    if (!/^[ \t]*(?:\n|$)/.test(rest)) {
+      expect(lineLengthAt(text, chunk.endOffset - 1), `${where}: cut mid-line`).toBeGreaterThan(
+        targetSize,
+      );
+    }
+    if (chunk.overlapChars > 0) {
+      const before = text.slice(text.lastIndexOf('\n', chunk.startOffset - 1) + 1, chunk.startOffset);
+      expect(before.trim(), `${where}: overlap starts mid-line`).toBe('');
+    }
+  });
+}
+
 /**
  * Asserts every documented guarantee of `chunkText` (docs/adr/0002-rag-pipeline.md §2) for one
  * input. Used by the table, property and golden tests.
@@ -37,6 +80,9 @@ export function expectChunkInvariants(
     expect(chunk.content.trim(), where).toBe(chunk.content);
     expect(chunk.charCount, where).toBe(chunk.content.length);
     expect(chunk.tokenEstimate, where).toBe(Math.ceil(chunk.charCount / 4));
+    // Line numbers (1-based) of the first and the last character.
+    expect(chunk.startLine, where).toBe(lineOf(text, chunk.startOffset));
+    expect(chunk.endLine, where).toBe(lineOf(text, chunk.endOffset - 1));
 
     // Size: only a surrogate pair with targetSize 1 may exceed the target (by one code unit).
     expect(chunk.charCount, where).toBeLessThanOrEqual(Math.max(targetSize, 2));

@@ -250,6 +250,7 @@ describe('ChatPage', () => {
       text(dt.nextElementSibling),
     ]);
     expect(meta).toEqual([
+      ['Language', 'markdown'],
       ['Section', 'Guide › Part 1'],
       ['score', '0.800 (distance 0.200)'],
       ['Chunk', '#0'],

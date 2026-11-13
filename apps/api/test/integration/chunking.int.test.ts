@@ -91,7 +91,7 @@ interface ChunkRow {
   char_count: number;
   token_estimate: number;
   heading_path: string[];
-  metadata: { overlapChars?: number };
+  metadata: { overlapChars?: number; startLine?: number; endLine?: number; symbol?: string };
   has_embedding: boolean;
   collection_id: string;
 }
@@ -158,6 +158,9 @@ describe('chunking pipeline against PostgreSQL', () => {
         tokenEstimate: row.token_estimate,
         headingPath: row.heading_path,
         overlapChars: row.metadata.overlapChars,
+        startLine: row.metadata.startLine,
+        endLine: row.metadata.endLine,
+        symbol: row.metadata.symbol ?? null,
       })),
     ).toEqual(expected);
     for (const row of rows) {
@@ -223,6 +226,9 @@ describe('chunk transaction against PostgreSQL', () => {
     tokenEstimate: 2,
     headingPath: [],
     overlapChars: 0,
+    startLine: 1,
+    endLine: 1,
+    symbol: null,
   });
   // Violates the CHECK constraint `chunks_content_not_blank`.
   const invalid = (index: number): ChunkDraft => ({ ...valid(index), content: '   ' });

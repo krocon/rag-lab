@@ -123,12 +123,16 @@ export async function runEvaluation({
       const relevantDocuments = [...new Set(query.anchors.map((anchor) => anchor.document))];
       const results: RetrievedHit[] = response.results.map((result) => ({
         rank: result.rank,
-        filename: result.filename,
+        // Datasets with subdirectories are uploaded with paths; their documents are named by path.
+        filename: result.path ?? result.filename,
         chunkIndex: result.chunkIndex,
         headingPath: result.headingPath,
         score: result.score,
-        documentRelevant: relevantDocuments.includes(result.filename),
-        matchedAnchors: matchedAnchorIds(query.anchors, result),
+        documentRelevant: relevantDocuments.includes(result.path ?? result.filename),
+        matchedAnchors: matchedAnchorIds(query.anchors, {
+          ...result,
+          filename: result.path ?? result.filename,
+        }),
       }));
       const documentRanking: RankedItem[] = results.map((hit) => [hit.filename]);
       const sectionRanking: RankedItem[] = results.map((hit) => hit.matchedAnchors);
@@ -193,6 +197,10 @@ async function indexDocuments(
   if (!indexer) {
     throw new EvalError('No indexing steps are configured – documents would never become ready.');
   }
+  // A dataset with subdirectories (a source tree) is uploaded with relative paths, like
+  // `pnpm kb:import`, so the embedding context header (ADR 0004) is part of the evaluation. Flat
+  // datasets are uploaded as before (file name only), keeping their results comparable.
+  const withPaths = documents.some((document) => document.filename.includes('/'));
   const uploaded: { id: string; filename: string }[] = [];
   for (const document of documents) {
     signal?.throwIfAborted();
@@ -200,13 +208,17 @@ async function indexDocuments(
     const [stored] = await services.documents.upload(
       collectionId,
       (async function* () {
-        yield { filename: document.filename, read: async () => bytes };
+        yield {
+          filename: document.filename,
+          ...(withPaths ? { path: document.filename } : {}),
+          read: async () => bytes,
+        };
       })(),
     );
     if (!stored) {
       throw new EvalError(`Upload of ${document.filename} returned no document.`);
     }
-    uploaded.push({ id: stored.id, filename: stored.filename });
+    uploaded.push({ id: stored.id, filename: stored.path ?? stored.filename });
   }
   // `index` returns the already scheduled run of the upload, so this waits for all of them.
   await Promise.all(uploaded.map((document) => indexer.index(document.id)));

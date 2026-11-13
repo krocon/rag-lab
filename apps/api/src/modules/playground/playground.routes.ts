@@ -27,13 +27,23 @@ const countSchema = { type: 'integer', minimum: 0 } as const;
 
 const playgroundResultSchema = {
   ...retrievalResultSchema,
-  required: [...retrievalResultSchema.required, 'includedInChatContext', 'belowMinScore'],
+  required: [
+    ...retrievalResultSchema.required,
+    'includedInChatContext',
+    'belowMinScore',
+    'embeddingHeader',
+  ],
   properties: {
     ...retrievalResultSchema.properties,
     includedInChatContext: {
       type: 'boolean',
       description:
         'Chat would send this chunk to the model: score ≥ minScore and within CHAT_CONTEXT_CHAR_BUDGET',
+    },
+    embeddingHeader: {
+      type: ['string', 'null'],
+      description:
+        'Header embedded in front of `content` (`File: …`, `Symbol: …`) for imported documents; null = only `content` was embedded',
     },
     belowMinScore: {
       type: 'boolean',

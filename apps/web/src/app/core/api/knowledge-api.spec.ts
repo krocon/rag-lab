@@ -76,6 +76,28 @@ describe('KnowledgeApi', () => {
     expect((await reindex).status).toBe('pending');
   });
 
+  it('requests a filtered page of documents with query parameters', async () => {
+    const page = firstValueFrom(
+      api.listDocumentPage(COLLECTION_ID, { pathPrefix: 'packages/a b', limit: 100, offset: 200 }),
+    );
+    const request = http.expectOne(
+      (req) => req.method === 'GET' && req.url === `/api/collections/${COLLECTION_ID}/documents`,
+    );
+    expect(request.request.params.get('pathPrefix')).toBe('packages/a b');
+    expect(request.request.params.get('limit')).toBe('100');
+    expect(request.request.params.get('offset')).toBe('200');
+    request.flush({ items: [document()], total: 201 });
+    expect(await page).toEqual({ items: [document()], total: 201 });
+
+    const unfiltered = firstValueFrom(
+      api.listDocumentPage(COLLECTION_ID, { pathPrefix: '', limit: 10, offset: 0 }),
+    );
+    const second = http.expectOne(`/api/collections/${COLLECTION_ID}/documents?limit=10&offset=0`);
+    expect(second.request.params.has('pathPrefix')).toBe(false);
+    second.flush({ items: [], total: 0 });
+    await unfiltered;
+  });
+
   it('encodes ids in URLs', async () => {
     const result = firstValueFrom(api.getDocument('a/b'));
     http.expectOne('/api/documents/a%2Fb').flush(document());

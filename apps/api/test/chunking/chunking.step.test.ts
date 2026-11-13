@@ -10,7 +10,7 @@ import { IndexingError } from '../../src/modules/ingestion/document-indexer.js';
 
 function context(content: string, mimeType = 'text/markdown'): IndexingContext {
   return {
-    document: { id: 'doc-1', collectionId: 'col-1', filename: 'a.md', mimeType, content },
+    document: { id: 'doc-1', collectionId: 'col-1', filename: 'a.md', path: null, mimeType, content },
     chunkCount: 0,
   };
 }
@@ -48,6 +48,34 @@ describe('chunking step', () => {
     ]);
     expect(call?.drafts.every((draft) => draft.headingPath[0] === 'Title')).toBe(true);
     expect(ctx.chunkCount).toBe(3);
+  });
+
+  it('chunks source code by declarations; the heading path is file path and symbol', async () => {
+    const repository = recordingRepository();
+    const step = createChunkingStep({ repository, options: { targetSize: 40, overlap: 0 } });
+    const ctx: IndexingContext = {
+      document: {
+        id: 'doc-1',
+        collectionId: 'col-1',
+        filename: 'tree.ts',
+        path: 'packages/table/src/tree.ts',
+        mimeType: 'text/typescript',
+        content: 'export class Tree {\n  a = 1;\n}\n\nexport function build() {\n  return 1;\n}\n',
+      },
+      chunkCount: 0,
+    };
+
+    await step.run(ctx, new AbortController().signal);
+
+    const drafts = repository.calls[0]?.drafts ?? [];
+    expect(drafts.map((draft) => draft.headingPath)).toEqual([
+      ['packages/table/src/tree.ts', 'class Tree'],
+      ['packages/table/src/tree.ts', 'function build'],
+    ]);
+    expect(drafts.map((draft) => [draft.startLine, draft.endLine])).toEqual([
+      [1, 3],
+      [5, 7],
+    ]);
   });
 
   it('chunks plain text without heading sections', async () => {

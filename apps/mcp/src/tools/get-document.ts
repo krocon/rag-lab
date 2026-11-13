@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ToolInputError } from '../errors.js';
 import {
   headingText,
+  sourceLocation,
   truncate,
   UNTRUSTED_NOTICE,
   UNTRUSTED_PREAMBLE,
@@ -23,6 +24,9 @@ const documentShape = z.object({
   id: z.string(),
   collectionId: z.string(),
   filename: z.string(),
+  /** Relative path of the document (imported sources), else null. */
+  path: z.string().nullable(),
+  language: z.string(),
   title: z.string().nullable(),
   mimeType: z.string(),
   sizeBytes: z.number().int(),
@@ -39,6 +43,10 @@ const chunkShape = z.object({
   headingPath: z.array(z.string()),
   startOffset: z.number().int(),
   endOffset: z.number().int(),
+  /** 1-based line range; null for chunks stored before RAGLab 0.2. */
+  startLine: z.number().int().nullable(),
+  endLine: z.number().int().nullable(),
+  symbol: z.string().nullable(),
   contextBefore: z.string(),
   contextAfter: z.string(),
 });
@@ -157,11 +165,24 @@ export function registerGetDocument(server: McpServer, context: ToolContext): vo
         if (contextBefore) {
           lines.push('', 'Context before the chunk:', untrustedBlock(contextBefore, boundary));
         }
+        const location = sourceLocation({
+          filename: meta.filename,
+          path: meta.path,
+          startLine: chunk.startLine,
+          endLine: chunk.endLine,
+        });
         lines.push(
           '',
           'Chunk:',
           untrustedBlock(
-            [`Section: ${headingText(chunk.headingPath)}`, '', text.text].join('\n'),
+            [
+              `File: ${location} (${meta.language})`,
+              chunk.symbol !== null
+                ? `Symbol: ${chunk.symbol}`
+                : `Section: ${headingText(chunk.headingPath)}`,
+              '',
+              text.text,
+            ].join('\n'),
             boundary,
           ),
         );
@@ -185,6 +206,9 @@ export function registerGetDocument(server: McpServer, context: ToolContext): vo
             headingPath: chunk.headingPath,
             startOffset: chunk.startOffset,
             endOffset: chunk.endOffset,
+            startLine: chunk.startLine,
+            endLine: chunk.endLine,
+            symbol: chunk.symbol,
             contextBefore,
             contextAfter,
           },
@@ -200,6 +224,8 @@ function toDocumentOutput(document: DocumentDto): z.infer<typeof documentShape> 
     id: document.id,
     collectionId: document.collectionId,
     filename: document.filename,
+    path: document.path,
+    language: document.language,
     title: typeof title === 'string' ? title : null,
     mimeType: document.mimeType,
     sizeBytes: document.sizeBytes,
@@ -227,6 +253,9 @@ function describeDocument(document: z.infer<typeof documentShape>): string[] {
   // File name and title come from the uploaded document. They are short, sanitised by the API
   // (file name) and JSON-quoted here, so they cannot span lines or imitate the content markers.
   lines.push(`File: ${JSON.stringify(document.filename)}`);
+  if (document.path !== null) {
+    lines.push(`Path: ${JSON.stringify(document.path)} (${document.language})`);
+  }
   if (document.title !== null) {
     lines.push(`Title: ${JSON.stringify(document.title)}`);
   }

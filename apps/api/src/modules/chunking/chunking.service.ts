@@ -39,7 +39,13 @@ export function createChunkingService({
       return { documentId, chunks: chunks.map(toChunkDto) };
     },
 
-    preview({ text, format, targetSize = defaults.targetSize, overlap = defaults.overlap }) {
+    preview({
+      text,
+      format,
+      language,
+      targetSize = defaults.targetSize,
+      overlap = defaults.overlap,
+    }) {
       if (overlap >= targetSize) {
         throw badRequest(
           'INVALID_CHUNKING_OPTIONS',
@@ -48,7 +54,7 @@ export function createChunkingService({
         );
       }
       const normalizedText = normalizeText(text);
-      const chunks = chunkText(normalizedText, { targetSize, overlap, format });
+      const chunks = chunkText(normalizedText, { targetSize, overlap, format, language });
       return { options: { targetSize, overlap, format }, normalizedText, chunks };
     },
   };
@@ -67,6 +73,9 @@ export function toChunkDto(chunk: StoredChunk): ChunkDto {
     tokenEstimate: chunk.tokenEstimate,
     headingPath: chunk.headingPath,
     overlapChars: typeof chunk.metadata.overlapChars === 'number' ? chunk.metadata.overlapChars : 0,
+    startLine: typeof chunk.metadata.startLine === 'number' ? chunk.metadata.startLine : null,
+    endLine: typeof chunk.metadata.endLine === 'number' ? chunk.metadata.endLine : null,
+    symbol: typeof chunk.metadata.symbol === 'string' ? chunk.metadata.symbol : null,
     hasEmbedding: chunk.hasEmbedding,
     createdAt: chunk.createdAt.toISOString(),
   };

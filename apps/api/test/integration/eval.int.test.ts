@@ -35,7 +35,11 @@ const datasetDirectory = fileURLToPath(
 );
 let dataset: EvalDataset;
 
-function evaluate(provider: EmbeddingProvider, name: string): Promise<EvaluationRun> {
+function evaluate(
+  provider: EmbeddingProvider,
+  name: string,
+  data: EvalDataset = dataset,
+): Promise<EvaluationRun> {
   const services = createServices(connection.db, config, silentLogger, {
     embeddingProvider: provider,
     chatProvider: createFakeChatProvider({ forbidCalls: true }),
@@ -45,7 +49,7 @@ function evaluate(provider: EmbeddingProvider, name: string): Promise<Evaluation
       dimensions: provider.dimensions,
     },
   });
-  return runEvaluation({ services, dataset, collectionName: name }).finally(() =>
+  return runEvaluation({ services, dataset: data, collectionName: name }).finally(() =>
     services.ingestion.close(),
   );
 }
@@ -101,5 +105,27 @@ describe('retrieval evaluation smoke test (lexical baseline, PostgreSQL)', () =>
     const run = await evaluate(createFakeEmbeddingProvider({ dimensions: 768 }), 'eval-control');
     expect(run.summary.document.mrr).toBeLessThan(0.5);
     expect(run.summary.section.atK['5']?.recall).toBeLessThan(0.5);
+  });
+});
+
+describe('code dataset (017): source tree with paths, lexical baseline, PostgreSQL', () => {
+  it('indexes code and Markdown with paths and finds the relevant files', async () => {
+    const code = await loadDataset(
+      fileURLToPath(new URL('../../../../eval/datasets/code-gridkit', import.meta.url)),
+    );
+    expect(code.documents.map((document) => document.filename)).toContain(
+      'src/tree/tree-model.ts',
+    );
+    const run = await evaluate(createLexicalEmbeddingProvider(768), 'eval-code', code);
+    expect(run.unresolvedAnchors).toEqual([]);
+    expect(run.indexing.documents).toBe(code.documents.length);
+    // Baseline measures document Hit-Rate@5 = 1.0, Recall@10 = 1.0, MRR ≈ 0.94, section
+    // Recall@5 ≈ 0.81, MRR ≈ 0.90; thresholds sit 0.15 below (see the smoke test above).
+    const { document, section } = run.summary;
+    expect(document.atK['5']?.hitRate).toBeGreaterThanOrEqual(0.85);
+    expect(document.atK['10']?.recall).toBeGreaterThanOrEqual(0.85);
+    expect(document.mrr).toBeGreaterThanOrEqual(0.75);
+    expect(section.atK['5']?.recall).toBeGreaterThanOrEqual(0.65);
+    expect(section.mrr).toBeGreaterThanOrEqual(0.7);
   });
 });

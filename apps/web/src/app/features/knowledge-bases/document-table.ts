@@ -5,7 +5,10 @@ import type { DocumentDto } from '@raglab/shared';
 import { formatBytes } from '../../core/util/format';
 import { DocumentStatusBadge } from './document-status';
 
-/** Documents of a collection as a semantic table; actions are handled by the page. */
+/**
+ * Documents of a collection as a semantic table (path, falling back to the file name for uploads
+ * without a path, and language); actions are handled by the page.
+ */
 @Component({
   selector: 'rl-document-table',
   imports: [DatePipe, RouterLink, DocumentStatusBadge],
@@ -20,7 +23,8 @@ import { DocumentStatusBadge } from './document-status';
         </caption>
         <thead>
           <tr>
-            <th scope="col">File name</th>
+            <th scope="col">Path</th>
+            <th scope="col">Language</th>
             <th scope="col" class="num">Size</th>
             <th scope="col">Status</th>
             <th scope="col" class="num">Chunks</th>
@@ -40,9 +44,10 @@ import { DocumentStatusBadge } from './document-status';
                     document.id,
                   ]"
                 >
-                  {{ document.filename }}
+                  {{ document.path || document.filename }}
                 </a>
               </th>
+              <td>{{ document.language }}</td>
               <td class="num">{{ size(document.sizeBytes) }}</td>
               <td>
                 <rl-document-status [status]="document.status" />
@@ -100,6 +105,7 @@ import { DocumentStatusBadge } from './document-status';
       color: var(--rl-text);
       overflow-wrap: anywhere;
       min-width: 10rem;
+      font-family: var(--rl-mono);
     }
     .doc-error {
       margin: 0.4rem 0 0;
@@ -111,7 +117,7 @@ import { DocumentStatusBadge } from './document-status';
     td {
       white-space: nowrap;
     }
-    td:nth-child(3) {
+    td:nth-child(4) {
       white-space: normal;
     }
   `,

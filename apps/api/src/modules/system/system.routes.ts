@@ -61,10 +61,18 @@ export const systemRoutes: FastifyPluginAsync<{ config: AppConfig }> = async (ap
               },
               upload: {
                 type: 'object',
-                required: ['maxFileBytes', 'maxFiles', 'allowedExtensions'],
+                required: [
+                  'maxFileBytes',
+                  'maxFiles',
+                  'maxRequestBytes',
+                  'maxDocumentsPerCollection',
+                  'allowedExtensions',
+                ],
                 properties: {
                   maxFileBytes: { type: 'integer' },
                   maxFiles: { type: 'integer' },
+                  maxRequestBytes: { type: 'integer' },
+                  maxDocumentsPerCollection: { type: ['integer', 'null'] },
                   allowedExtensions: { type: 'array', items: { type: 'string' } },
                 },
               },

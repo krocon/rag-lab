@@ -30,6 +30,11 @@ export interface PlaygroundResult extends RetrievalResult {
   includedInChatContext: boolean;
   /** `score < minScore`: chat would drop it before building the prompt. */
   belowMinScore: boolean;
+  /**
+   * Context header that was embedded in front of `content` (`File: …`, `Symbol: …`), so the
+   * embedded text is exactly `embeddingHeader + content`; `null` = only `content` was embedded.
+   */
+  embeddingHeader: string | null;
 }
 
 export interface EmbeddingModelInfo {

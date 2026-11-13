@@ -11,6 +11,7 @@ import { DOCUMENT_STATUSES } from '../../db/schema.js';
 import { AppError, errorResponseSchema } from '../../http/errors.js';
 import { idParamsSchema, type IdParams } from '../../http/schemas.js';
 import { SUPPORTED_EXTENSIONS } from '../ingestion/file-type.js';
+import { MAX_PATH_LENGTH } from '../ingestion/relative-path.js';
 import type { UploadedFile } from '../ingestion/prepare-upload.js';
 import type { DocumentsService } from './documents.service.js';
 
@@ -20,6 +21,8 @@ export const documentSchema = {
     'id',
     'collectionId',
     'filename',
+    'path',
+    'language',
     'mimeType',
     'sizeBytes',
     'contentSha256',
@@ -34,6 +37,8 @@ export const documentSchema = {
     id: { type: 'string', format: 'uuid' },
     collectionId: { type: 'string', format: 'uuid' },
     filename: { type: 'string' },
+    path: { type: ['string', 'null'] },
+    language: { type: 'string' },
     mimeType: { type: 'string' },
     sizeBytes: { type: 'integer' },
     contentSha256: { type: 'string' },
@@ -51,15 +56,40 @@ export interface DocumentsRoutesOptions {
   upload: AppConfig['upload'];
 }
 
-/** Non-file form fields are ignored, but limited so they cannot be abused to send large bodies. */
-const MAX_FORM_FIELDS = 10;
-const MAX_FORM_FIELD_BYTES = 1024;
+/**
+ * Form fields other than `path` are ignored, but limited so they cannot be abused to send large
+ * bodies. Every file may be preceded by one `path` field, so the field limit grows with the file
+ * limit; a path has at most MAX_PATH_LENGTH characters (≤ 4 UTF-8 bytes each).
+ */
+const MAX_EXTRA_FORM_FIELDS = 10;
+const MAX_FORM_FIELD_BYTES = MAX_PATH_LENGTH * 4;
+
+/** Name of the form field that carries the relative path of the **next** file part. */
+export const PATH_FIELD_NAME = 'path';
+
+/** Upper bound of `limit` of the document list. */
+const MAX_LIST_LIMIT = 1000;
+
+interface DocumentListQuerystring {
+  pathPrefix?: string;
+  limit?: number;
+  offset?: number;
+}
 
 /** Documents the multipart body in OpenAPI only; the stream is validated by the handler. */
 const uploadBodySchema = {
   type: 'object',
   required: ['file'],
   properties: {
+    path: {
+      type: 'array',
+      items: { type: 'string', maxLength: MAX_PATH_LENGTH },
+      description:
+        'Optional relative path of the file that follows this field (e.g. `packages/table/src/x.ts`): ' +
+        'send a `path` field directly before each file part. Relative, `/` as separator, no `.`/`..` ' +
+        `or empty segments, no control/bidi characters, at most ${MAX_PATH_LENGTH} characters; ` +
+        'unique per collection (`409 DUPLICATE_PATH`). Display/metadata only.',
+    },
     file: {
       type: 'array',
       items: { type: 'string', format: 'binary' },
@@ -114,6 +144,8 @@ async function* multipartFiles(
   // their total size is capped as well. The check runs after each file: at most one file
   // (≤ MAX_UPLOAD_BYTES) more than the cap is read.
   let totalBytes = 0;
+  /** Value of the last `path` field; applies to the next file part only. */
+  let pendingPath: string | undefined;
   const parts = request.parts();
   while (true) {
     let next: Awaited<ReturnType<typeof parts.next>>;
@@ -127,11 +159,25 @@ async function* multipartFiles(
     }
     const part = next.value;
     if (part.type !== 'file') {
+      if (part.fieldname === PATH_FIELD_NAME) {
+        if (part.valueTruncated || typeof part.value !== 'string') {
+          throw new AppError(
+            400,
+            'INVALID_PATH',
+            `A path is invalid: it must not be longer than ${MAX_PATH_LENGTH} characters.`,
+            { reason: 'too_long' },
+          );
+        }
+        pendingPath = part.value;
+      }
       continue;
     }
+    const path = pendingPath;
+    pendingPath = undefined;
     let consumed = false;
     yield {
       filename: part.filename,
+      path,
       async read() {
         consumed = true;
         let bytes: Buffer;
@@ -170,9 +216,9 @@ export const documentsRoutes: FastifyPluginAsync<DocumentsRoutesOptions> = async
     limits: {
       fileSize: upload.maxFileBytes,
       files: upload.maxFiles,
-      fields: MAX_FORM_FIELDS,
+      fields: upload.maxFiles + MAX_EXTRA_FORM_FIELDS,
       fieldSize: MAX_FORM_FIELD_BYTES,
-      parts: upload.maxFiles + MAX_FORM_FIELDS,
+      parts: 2 * upload.maxFiles + MAX_EXTRA_FORM_FIELDS,
       headerPairs: 100,
     },
   });
@@ -182,7 +228,7 @@ export const documentsRoutes: FastifyPluginAsync<DocumentsRoutesOptions> = async
     {
       schema: {
         tags: ['documents'],
-        summary: 'Upload Markdown/text files into a collection',
+        summary: 'Upload Markdown, text and source code files into a collection',
         description: [
           `\`multipart/form-data\` with one or more files (${SUPPORTED_EXTENSIONS.join(', ')}),`,
           `each at most ${formatBytes(upload.maxFileBytes)}, at most ${upload.maxFiles} files and`,
@@ -192,6 +238,8 @@ export const documentsRoutes: FastifyPluginAsync<DocumentsRoutesOptions> = async
             : `(\`413 UPLOAD_TOO_LARGE\` above the total), at most ${upload.maxDocumentsPerCollection} documents per collection (\`409 DOCUMENT_LIMIT_REACHED\`).`,
           'Files must be UTF-8 text. They are normalised (BOM, line endings, NFC, control characters,',
           'blank lines) and deduplicated per collection by the SHA-256 of the normalised text.',
+          'A `path` form field directly before a file part sets its relative path (validated, unique',
+          'per collection: `400 INVALID_PATH`, `409 DUPLICATE_PATH`); the file name is then its last segment.',
           'All files are validated before anything is stored: one invalid file rejects the whole request.',
           'Answers `202 Accepted`; documents start as `pending` and are processed asynchronously.',
         ].join(' '),
@@ -234,26 +282,47 @@ export const documentsRoutes: FastifyPluginAsync<DocumentsRoutesOptions> = async
     },
   );
 
-  app.get<{ Params: IdParams; Reply: DocumentListResponse }>(
+  app.get<{ Params: IdParams; Querystring: DocumentListQuerystring; Reply: DocumentListResponse }>(
     '/collections/:id/documents',
     {
       schema: {
         tags: ['documents'],
         summary: 'List the documents of a collection (metadata only, without content)',
-        description: 'Returns the complete list (no pagination in the MVP), oldest first.',
+        description: [
+          'Ordered by path (documents without a path last, oldest first).',
+          '`pathPrefix` filters by path prefix (literal, case-sensitive); `limit`/`offset` page the',
+          'result – without `limit` the complete list is returned. `total` counts all matches.',
+        ].join(' '),
         params: idParamsSchema,
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            pathPrefix: { type: 'string', maxLength: MAX_PATH_LENGTH },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_LIST_LIMIT },
+            offset: { type: 'integer', minimum: 0, maximum: 1_000_000 },
+          },
+        },
         response: {
           200: {
             type: 'object',
-            required: ['items'],
-            properties: { items: { type: 'array', items: documentSchema } },
+            required: ['items', 'total'],
+            properties: {
+              items: { type: 'array', items: documentSchema },
+              total: { type: 'integer' },
+            },
           },
           400: errorResponseSchema,
           404: errorResponseSchema,
         },
       },
     },
-    async (request) => ({ items: await documents.listByCollection(request.params.id) }),
+    async (request) =>
+      documents.listByCollection(request.params.id, {
+        pathPrefix: request.query.pathPrefix,
+        limit: request.query.limit,
+        offset: request.query.offset,
+      }),
   );
 
   app.get<{ Params: IdParams; Reply: DocumentDto }>(

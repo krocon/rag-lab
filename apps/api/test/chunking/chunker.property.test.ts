@@ -4,7 +4,7 @@ import {
   type ChunkingFormat,
   type ChunkingOptions,
 } from '../../src/modules/chunking/chunker.js';
-import { expectChunkInvariants } from './invariants.js';
+import { expectChunkInvariants, expectCodeInvariants } from './invariants.js';
 
 /**
  * Property-based tests with a small seeded generator (mulberry32) instead of a dependency such as
@@ -103,5 +103,62 @@ describe('chunkText – properties (seeded)', () => {
     for (const { text, options } of cases) {
       expect(chunkText(text, options).length > 0).toBe(text.trim().length > 0);
     }
+  });
+});
+
+/** Random source code: declarations, decorators, comments, indented bodies, long lines. */
+function generateCode(random: () => number): string {
+  const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)] as T;
+  const name = () => pick(['tree', 'Row', 'pivot', 'x', 'renderCell', 'Größe', 'emoji😀']);
+  const lines: string[] = [];
+  const count = 1 + Math.floor(random() * 120);
+  for (let index = 0; index < count; index++) {
+    const roll = random();
+    if (roll < 0.1) {
+      lines.push(`export class ${name()} {`);
+    } else if (roll < 0.16) {
+      lines.push(`@Component({ selector: '${name()}' })`);
+    } else if (roll < 0.22) {
+      lines.push(pick(['/**', ' * Docs. e.g. a sentence. Another one!', ' */', '// comment.']));
+    } else if (roll < 0.3) {
+      lines.push(`export function ${name()}(a: number): void {`);
+    } else if (roll < 0.34) {
+      lines.push(`const ${name()} = ${'"x"'.repeat(1 + Math.floor(random() * 80))};`);
+    } else if (roll < 0.37) {
+      // Minified line.
+      lines.push(`var a=1;${'b(c,d);'.repeat(10 + Math.floor(random() * 120))}`);
+    } else if (roll < 0.5) {
+      lines.push('');
+    } else if (roll < 0.55) {
+      lines.push('}');
+    } else {
+      const indent = pick(['  ', '    ', '\t', '      ']);
+      lines.push(`${indent}${pick(['return', 'const', 'this.', 'if (x) {', '}', 'foo.bar();'])} ${name()};`);
+    }
+  }
+  return lines.join(pick(['\n', '\n']));
+}
+
+describe('chunkText – source code properties (seeded)', () => {
+  const random = mulberry32(20261111);
+  const languages = ['typescript', 'javascript', 'vue', 'python', 'css', 'json', 'unknown'];
+  const cases = Array.from({ length: 300 }, (_, index) => {
+    const targetSize = 20 + Math.floor(random() * 600);
+    const overlap = random() < 0.2 ? 0 : Math.floor(random() * targetSize);
+    const options: ChunkingOptions = {
+      targetSize,
+      overlap,
+      format: 'code',
+      language: languages[Math.floor(random() * languages.length)],
+    };
+    return { index, text: generateCode(random), options };
+  });
+
+  it.each(cases)('code case $index satisfies every invariant', ({ text, options }) => {
+    const chunks = chunkText(text, options);
+    expectChunkInvariants(text, chunks, options);
+    expectCodeInvariants(text, chunks, options);
+    expect(chunkText(text, options)).toEqual(chunks);
+    expect(chunks.length > 0).toBe(text.trim().length > 0);
   });
 });

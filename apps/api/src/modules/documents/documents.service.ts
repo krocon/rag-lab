@@ -1,4 +1,9 @@
-import type { DocumentContentResponse, DocumentDto, DocumentStatus } from '@raglab/shared';
+import type {
+  DocumentContentResponse,
+  DocumentDto,
+  DocumentListResponse,
+  DocumentStatus,
+} from '@raglab/shared';
 import { AppError, badRequest, conflict, isUniqueViolation, notFound } from '../../http/errors.js';
 import type { CollectionsService } from '../collections/collections.service.js';
 import {
@@ -6,15 +11,19 @@ import {
   type PreparedDocument,
   type UploadedFile,
 } from '../ingestion/prepare-upload.js';
+import { languageForMimeType } from '../ingestion/file-type.js';
 import {
   DOCUMENT_CONTENT_UNIQUE_INDEX,
+  DOCUMENT_PATH_UNIQUE_INDEX,
+  type DocumentListFilter,
   type DocumentMetadata,
   type DocumentsRepository,
   type ExistingDocumentRef,
 } from './documents.repository.js';
 
 export interface DocumentsService {
-  listByCollection(collectionId: string): Promise<DocumentDto[]>;
+  /** Ordered by path; filtered by path prefix and paged (`limit` absent = all). */
+  listByCollection(collectionId: string, filter?: DocumentListFilter): Promise<DocumentListResponse>;
   get(id: string): Promise<DocumentDto>;
   /** The normalised text of a document (basis for the source view). */
   getContent(id: string): Promise<DocumentContentResponse>;
@@ -97,6 +106,30 @@ export function createDocumentsService({
     }
   }
 
+  /** Throws `409 DUPLICATE_PATH` if a prepared path is already used in the collection. */
+  async function assertNoExistingPaths(
+    collectionId: string,
+    prepared: PreparedDocument[],
+  ): Promise<void> {
+    const paths = prepared.flatMap((document) => (document.path === null ? [] : [document.path]));
+    const existing = await repository.findByPaths(collectionId, paths);
+    for (const document of prepared) {
+      const match = existing.find((row) => row.path !== null && row.path === document.path);
+      if (match) {
+        throw conflict(
+          'DUPLICATE_PATH',
+          `A document with the path "${document.path}" already exists in this collection. Delete it first to replace it.`,
+          {
+            filename: document.filename,
+            path: document.path,
+            existingDocumentId: match.id,
+            existingDocumentStatus: match.status,
+          },
+        );
+      }
+    }
+  }
+
   /** Throws `409 DUPLICATE_DOCUMENT` if one of the prepared documents already exists. */
   async function assertNoExistingDuplicates(
     collectionId: string,
@@ -115,9 +148,10 @@ export function createDocumentsService({
   }
 
   return {
-    async listByCollection(collectionId) {
+    async listByCollection(collectionId, filter) {
       await collections.assertExists(collectionId);
-      return (await repository.listByCollection(collectionId)).map(toDocumentDto);
+      const { items, total } = await repository.listByCollection(collectionId, filter);
+      return { items: items.map(toDocumentDto), total };
     },
 
     async get(id) {
@@ -155,13 +189,24 @@ export function createDocumentsService({
             { filename: document.filename, duplicateOfFilename: sameInRequest.filename },
           );
         }
+        if (
+          document.path !== null &&
+          prepared.some((other) => other.path === document.path)
+        ) {
+          throw conflict(
+            'DUPLICATE_PATH',
+            `The path "${document.path}" occurs more than once in this upload.`,
+            { filename: document.filename, path: document.path },
+          );
+        }
         prepared.push(document);
       }
       if (prepared.length === 0) {
         throw badRequest('NO_FILE', 'The request contains no file. Send at least one file.');
       }
 
-      // 2. Duplicates per collection (same normalised content → same hash), document limit.
+      // 2. Duplicates per collection (same path; same normalised content → same hash), limit.
+      await assertNoExistingPaths(collectionId, prepared);
       await assertNoExistingDuplicates(collectionId, prepared);
       await assertDocumentLimit(collectionId, prepared.length);
 
@@ -172,6 +217,7 @@ export function createDocumentsService({
           prepared.map((document) => ({
             collectionId,
             filename: document.filename,
+            path: document.path,
             mimeType: document.mimeType,
             sizeBytes: document.sizeBytes,
             contentSha256: document.contentSha256,
@@ -180,9 +226,12 @@ export function createDocumentsService({
           })),
         );
       } catch (error) {
-        // A concurrent upload of the same content won the race for the unique index.
+        // A concurrent upload of the same content or path won the race for a unique index.
         if (isUniqueViolation(error, DOCUMENT_CONTENT_UNIQUE_INDEX)) {
           await assertNoExistingDuplicates(collectionId, prepared);
+        }
+        if (isUniqueViolation(error, DOCUMENT_PATH_UNIQUE_INDEX)) {
+          await assertNoExistingPaths(collectionId, prepared);
         }
         throw error;
       }
@@ -241,6 +290,8 @@ export function toDocumentDto(document: DocumentMetadata): DocumentDto {
     id: document.id,
     collectionId: document.collectionId,
     filename: document.filename,
+    path: document.path,
+    language: languageForMimeType(document.mimeType),
     mimeType: document.mimeType,
     sizeBytes: document.sizeBytes,
     contentSha256: document.contentSha256,

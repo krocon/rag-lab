@@ -1,11 +1,14 @@
 import type {
+  CollectionSource,
   RetrievalResult,
   RetrievalSearchRequest,
   RetrievalSearchResponse,
 } from '@raglab/shared';
 import { MAX_TOP_K, type AppConfig } from '../../config/env.js';
 import { AppError, badRequest, conflict } from '../../http/errors.js';
+import { buildSourceUrl } from '../collections/collection-source.js';
 import type { CollectionsService } from '../collections/collections.service.js';
+import { languageForMimeType } from '../ingestion/file-type.js';
 import {
   assertEmbeddings,
   EmbeddingProviderError,
@@ -135,7 +138,7 @@ export function createRetrievalService({
       });
       const searchMs = elapsedSince(searchStart);
 
-      const results = applyMinScore(rankResults(rows), minScore);
+      const results = applyMinScore(rankResults(rows, collection.source), minScore);
       const emptyReason =
         results.length > 0
           ? undefined
@@ -235,26 +238,43 @@ export function toProviderAppError(error: EmbeddingProviderError): AppError {
  * equal output) and assigns gapless 1-based ranks. Needed because `relaxed_order` may return
  * rows slightly out of order.
  */
-export function rankResults(rows: readonly RetrievedChunk[]): RetrievalResult[] {
+export function rankResults(
+  rows: readonly RetrievedChunk[],
+  source: CollectionSource | null = null,
+): RetrievalResult[] {
   const sorted = [...rows].sort(
     (a, b) =>
       a.distance - b.distance ||
       a.documentId.localeCompare(b.documentId) ||
       a.chunkIndex - b.chunkIndex,
   );
-  return sorted.map((row, index) => ({
-    rank: index + 1,
-    chunkId: row.chunkId,
-    documentId: row.documentId,
-    filename: row.filename,
-    chunkIndex: row.chunkIndex,
-    headingPath: row.headingPath,
-    content: row.content,
-    startOffset: row.startOffset,
-    endOffset: row.endOffset,
-    distance: row.distance,
-    score: toScore(row.distance),
-  }));
+  return sorted.map((row, index) => {
+    const startLine = numberOrNull(row.metadata['startLine']);
+    const endLine = numberOrNull(row.metadata['endLine']);
+    return {
+      rank: index + 1,
+      chunkId: row.chunkId,
+      documentId: row.documentId,
+      filename: row.filename,
+      path: row.path,
+      language: languageForMimeType(row.mimeType),
+      chunkIndex: row.chunkIndex,
+      headingPath: row.headingPath,
+      content: row.content,
+      startOffset: row.startOffset,
+      endOffset: row.endOffset,
+      startLine,
+      endLine,
+      symbol: typeof row.metadata['symbol'] === 'string' ? row.metadata['symbol'] : null,
+      sourceUrl: buildSourceUrl(source, row.path, startLine, endLine),
+      distance: row.distance,
+      score: toScore(row.distance),
+    };
+  });
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 ? value : null;
 }
 
 /**

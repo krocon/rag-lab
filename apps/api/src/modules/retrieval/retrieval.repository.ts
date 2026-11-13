@@ -12,11 +12,16 @@ export type RetrievedChunk = {
   chunkId: string;
   documentId: string;
   filename: string;
+  /** Relative document path; `null` for uploads without a path. */
+  path: string | null;
+  mimeType: string;
   chunkIndex: number;
   content: string;
   headingPath: string[];
   startOffset: number;
   endOffset: number;
+  /** `chunks.metadata` (line range, symbol since prompt 017). */
+  metadata: Record<string, unknown>;
   /** Raw cosine distance (`<=>`). */
   distance: number;
 };
@@ -88,11 +93,14 @@ export function searchQuery({ collectionId, embedding, limit }: VectorSearchPara
     SELECT ${chunks.id} AS "chunkId",
            ${chunks.documentId} AS "documentId",
            ${documents.filename} AS "filename",
+           ${documents.path} AS "path",
+           ${documents.mimeType} AS "mimeType",
            ${chunks.chunkIndex} AS "chunkIndex",
            ${chunks.content} AS "content",
            ${chunks.headingPath} AS "headingPath",
            ${chunks.startOffset} AS "startOffset",
            ${chunks.endOffset} AS "endOffset",
+           ${chunks.metadata} AS "metadata",
            ${distance} AS "distance"
       FROM ${chunks}
       JOIN ${documents} ON ${documents.id} = ${chunks.documentId}

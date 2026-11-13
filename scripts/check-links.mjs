@@ -16,7 +16,7 @@ import { checkDocument } from './docs/link-lib.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.angular', '.git', '.idea']);
-const SKIP_PATHS = new Set([join('prompts', 'done'), join('eval', 'results')]);
+const SKIP_PATHS = new Set([join('prompts', 'done'), join('eval', 'results'), 'kb-import']);
 
 /** @param {string} dir @returns {string[]} */
 function markdownFiles(dir) {

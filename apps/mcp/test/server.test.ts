@@ -194,6 +194,12 @@ describe('search_knowledge', () => {
           score: 0.75,
           distance: 0.25,
           filename: 'deploy.md',
+          path: null,
+          language: 'markdown',
+          startLine: null,
+          endLine: null,
+          symbol: null,
+          sourceUrl: null,
           headingPath: ['Deploy', 'Rollback'],
           documentId: DOCUMENT_ID,
           chunkId: CHUNK_ID_2,
@@ -208,8 +214,44 @@ describe('search_knowledge', () => {
     expect(output).toContain(`documentId ${DOCUMENT_ID} · chunkId ${CHUNK_ID_2}`);
     expect(output).toContain(UNTRUSTED_PREAMBLE);
     expect(output).toContain(
-      `${BEGIN}\nFile: deploy.md\nSection: Deploy > Rollback\n\nRun \`make rollback\` to revert.\n${END}`,
+      `${BEGIN}\nFile: deploy.md (markdown)\nSection: Deploy > Rollback\n\nRun \`make rollback\` to revert.\n${END}`,
     );
+  });
+
+  it('shows path, line range, language, symbol and link of source code (017)', async () => {
+    const { call } = await connect({
+      search: async () =>
+        searchResponse({
+          results: [
+            retrievalResult({
+              filename: 'tree.ts',
+              path: 'packages/table/src/tree.ts',
+              language: 'typescript',
+              startLine: 10,
+              endLine: 42,
+              symbol: 'class TreeFactory',
+              sourceUrl: 'https://github.com/o/r/blob/abc/packages/table/src/tree.ts#L10-L42',
+              headingPath: ['packages/table/src/tree.ts', 'class TreeFactory'],
+              content: 'export class TreeFactory {}',
+            }),
+          ],
+        }),
+    });
+    const result = await call('search_knowledge', { collection: 'Handbook', query: 'tree factory' });
+    const output = text(result);
+    expect(output).toContain(
+      `${BEGIN}\nFile: packages/table/src/tree.ts:10–42 (typescript)\nSymbol: class TreeFactory\nLink: https://github.com/o/r/blob/abc/packages/table/src/tree.ts#L10-L42\n\nexport class TreeFactory {}\n${END}`,
+    );
+    const structured = result.structuredContent as {
+      results: { path: string; startLine: number; endLine: number; language: string; symbol: string; sourceUrl: string }[];
+    };
+    expect(structured.results[0]).toMatchObject({
+      path: 'packages/table/src/tree.ts',
+      startLine: 10,
+      endLine: 42,
+      language: 'typescript',
+      symbol: 'class TreeFactory',
+    });
   });
 
   it('omits topK when not given (API default)', async () => {
@@ -364,7 +406,7 @@ describe('get_document', () => {
     const output = text(result);
     expect(output).toContain('Context before the chunk:');
     expect(output).toContain(
-      `Chunk:\n${BEGIN}\nSection: Deploy > Rollback\n\n## Rollback\n\nRun \`make rollback\` to revert.\n${END}`,
+      `Chunk:\n${BEGIN}\nFile: deploy.md:5–7 (markdown)\nSection: Deploy > Rollback\n\n## Rollback\n\nRun \`make rollback\` to revert.\n${END}`,
     );
     expect(output).toContain('Context after the chunk:');
   });

@@ -9,6 +9,7 @@ import {
 import { createCollectionsService } from '../src/modules/collections/collections.service.js';
 import {
   DOCUMENT_CONTENT_UNIQUE_INDEX,
+  DOCUMENT_PATH_UNIQUE_INDEX,
   type DocumentMetadata,
   type DocumentsRepository,
 } from '../src/modules/documents/documents.repository.js';
@@ -72,7 +73,12 @@ export function createInMemoryChunksRepository(store: InMemoryStore): ChunksRepo
           charCount: draft.charCount,
           tokenEstimate: draft.tokenEstimate,
           headingPath: draft.headingPath,
-          metadata: { overlapChars: draft.overlapChars },
+          metadata: {
+            overlapChars: draft.overlapChars,
+            startLine: draft.startLine,
+            endLine: draft.endLine,
+            ...(draft.symbol === null ? {} : { symbol: draft.symbol }),
+          },
           hasEmbedding: false,
           createdAt,
         })),
@@ -82,7 +88,7 @@ export function createInMemoryChunksRepository(store: InMemoryStore): ChunksRepo
     listWithoutEmbedding: async (documentId) =>
       (store.chunks.get(documentId) ?? [])
         .filter((chunk) => !chunk.hasEmbedding)
-        .map(({ id, content }) => ({ id, content })),
+        .map(({ id, content, headingPath, metadata }) => ({ id, content, headingPath, metadata })),
     countWithoutEmbedding: async (documentId) =>
       (store.chunks.get(documentId) ?? []).filter((chunk) => !chunk.hasEmbedding).length,
     storeEmbeddings: async (documentId, embeddings) => {
@@ -138,11 +144,14 @@ export function createInMemoryRetrievalRepository(store: InMemoryStore): Retriev
             chunkId: chunk.id,
             documentId: document.id,
             filename: document.filename,
+            path: document.path ?? null,
+            mimeType: document.mimeType,
             chunkIndex: chunk.chunkIndex,
             content: chunk.content,
             headingPath: chunk.headingPath,
             startOffset: chunk.startOffset,
             endOffset: chunk.endOffset,
+            metadata: chunk.metadata,
             distance: cosineDistance(vector, embedding),
           });
         }
@@ -185,6 +194,7 @@ export function createInMemoryCollectionsRepository(store: InMemoryStore): Colle
       const collection: CollectionWithStats = {
         id: randomUUID(),
         ...record,
+        source: null,
         createdAt: now,
         updatedAt: now,
         documentCount: 0,
@@ -254,8 +264,29 @@ export function createInMemoryDocumentsRepository(store: InMemoryStore): Documen
     }
   };
   return {
-    listByCollection: async (collectionId) =>
-      all().filter((document) => document.collectionId === collectionId),
+    listByCollection: async (collectionId, filter = {}) => {
+      const matching = all()
+        .filter((document) => document.collectionId === collectionId)
+        .filter(
+          (document) =>
+            !filter.pathPrefix || (document.path ?? null)?.startsWith(filter.pathPrefix) === true,
+        )
+        .sort((a, b) => {
+          const pathA = a.path ?? null;
+          const pathB = b.path ?? null;
+          if (pathA !== pathB) {
+            if (pathA === null) return 1;
+            if (pathB === null) return -1;
+            return pathA < pathB ? -1 : 1;
+          }
+          return a.createdAt.getTime() - b.createdAt.getTime();
+        })
+        .map(withoutContent);
+      const offset = filter.offset ?? 0;
+      const items =
+        filter.limit === undefined ? matching : matching.slice(offset, offset + filter.limit);
+      return { items, total: matching.length };
+    },
     findById: async (id) => store.documents.get(id),
     findContent: async (id) => {
       const document = store.documents.get(id);
@@ -267,7 +298,27 @@ export function createInMemoryDocumentsRepository(store: InMemoryStore): Documen
           (document) =>
             document.collectionId === collectionId && hashes.includes(document.contentSha256),
         )
-        .map(({ id, contentSha256, status }) => ({ id, contentSha256, status })),
+        .map(({ id, contentSha256, path, status }) => ({
+          id,
+          contentSha256,
+          path: path ?? null,
+          status,
+        })),
+    findByPaths: async (collectionId, paths) =>
+      all()
+        .filter(
+          (document) =>
+            document.collectionId === collectionId &&
+            document.path !== null &&
+            document.path !== undefined &&
+            paths.includes(document.path),
+        )
+        .map(({ id, contentSha256, path, status }) => ({
+          id,
+          contentSha256,
+          path: path ?? null,
+          status,
+        })),
     insertMany: async (records) => {
       for (const record of records) {
         const clash = all().some(
@@ -278,12 +329,23 @@ export function createInMemoryDocumentsRepository(store: InMemoryStore): Documen
         if (clash) {
           throw uniqueViolation(DOCUMENT_CONTENT_UNIQUE_INDEX);
         }
+        const pathClash =
+          record.path !== null &&
+          record.path !== undefined &&
+          all().some(
+            (document) =>
+              document.collectionId === record.collectionId && document.path === record.path,
+          );
+        if (pathClash) {
+          throw uniqueViolation(DOCUMENT_PATH_UNIQUE_INDEX);
+        }
       }
       return records.map((record) => {
         const now = new Date();
         const document: StoredDocument = {
           id: randomUUID(),
           ...record,
+          path: record.path ?? null,
           metadata: record.metadata ?? {},
           status: 'pending',
           errorMessage: null,
@@ -318,6 +380,7 @@ export function createInMemoryDocumentsRepository(store: InMemoryStore): Documen
         id,
         collectionId: document.collectionId,
         filename: document.filename,
+        path: document.path ?? null,
         mimeType: document.mimeType,
         content: document.content ?? '',
       };
@@ -437,6 +500,7 @@ export function fakeDocument(overrides: Partial<DocumentMetadata> = {}): Documen
     id: randomUUID(),
     collectionId: randomUUID(),
     filename: 'guide.md',
+    path: null,
     mimeType: 'text/markdown',
     sizeBytes: 42,
     contentSha256: 'a'.repeat(64),

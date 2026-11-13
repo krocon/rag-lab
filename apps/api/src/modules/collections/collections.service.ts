@@ -1,9 +1,11 @@
 import type {
   CollectionDto,
   CreateCollectionRequest,
+  SetCollectionSourceRequest,
   UpdateCollectionRequest,
 } from '@raglab/shared';
 import { badRequest, conflict, isUniqueViolation, notFound } from '../../http/errors.js';
+import { toCollectionSource, toSourceRecord } from './collection-source.js';
 import {
   COLLECTION_NAME_UNIQUE_INDEX,
   type CollectionIndexStats,
@@ -19,6 +21,11 @@ export interface CollectionsService {
   assertExists(id: string): Promise<void>;
   create(input: CreateCollectionRequest): Promise<CollectionDto>;
   update(id: string, input: UpdateCollectionRequest): Promise<CollectionDto>;
+  /**
+   * Records where the documents were imported from (`pnpm kb:import`); `importedAt` = now.
+   * Throws `400 INVALID_SOURCE` (e.g. URL with credentials) and `404 COLLECTION_NOT_FOUND`.
+   */
+  setSource(id: string, input: SetCollectionSourceRequest): Promise<CollectionDto>;
   delete(id: string): Promise<void>;
   /**
    * Documents by status and chunks by embedding state (retrieval diagnostics).
@@ -38,11 +45,14 @@ export interface CollectionsServiceDependencies {
   repository: CollectionsRepository;
   /** The embedding settings in effect; copied into every new collection. */
   embedding: CollectionEmbeddingSettings;
+  /** Clock for `source.importedAt`; replaceable in tests. */
+  now?: () => Date;
 }
 
 export function createCollectionsService({
   repository,
   embedding,
+  now = () => new Date(),
 }: CollectionsServiceDependencies): CollectionsService {
   const collectionNotFound = (id: string) =>
     notFound('COLLECTION_NOT_FOUND', `Collection ${id} does not exist`);
@@ -122,6 +132,14 @@ export function createCollectionsService({
       return toCollectionDto(updated);
     },
 
+    async setSource(id, input) {
+      const updated = await repository.update(id, { source: toSourceRecord(input, now()) });
+      if (!updated) {
+        throw collectionNotFound(id);
+      }
+      return toCollectionDto(updated);
+    },
+
     async delete(id) {
       if (!(await repository.delete(id))) {
         throw collectionNotFound(id);
@@ -155,6 +173,7 @@ export function toCollectionDto(collection: CollectionWithStats): CollectionDto 
     documentCount: collection.documentCount,
     readyDocumentCount: collection.readyDocumentCount,
     chunkCount: collection.chunkCount,
+    source: toCollectionSource(collection.source ?? null),
     createdAt: collection.createdAt.toISOString(),
     updatedAt: collection.updatedAt.toISOString(),
   };

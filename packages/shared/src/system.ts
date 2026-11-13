@@ -58,6 +58,10 @@ export interface SystemInfoResponse {
   upload: {
     maxFileBytes: number;
     maxFiles: number;
+    /** Total bytes of all files of one request (`MAX_UPLOAD_REQUEST_BYTES`). */
+    maxRequestBytes: number;
+    /** `MAX_DOCUMENTS_PER_COLLECTION`; `null` = unlimited. */
+    maxDocumentsPerCollection: number | null;
     allowedExtensions: string[];
   };
 }

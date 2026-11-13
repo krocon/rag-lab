@@ -119,3 +119,36 @@ export function splitMarkdownSections(text: string): MarkdownSection[] {
   });
   return sections;
 }
+
+/** A fenced code block: from the start of its opening fence line to the end of its closing one. */
+export interface FencedBlock {
+  start: number;
+  /** End of the closing fence line (before its line break); text end for an unclosed fence. */
+  end: number;
+}
+
+/**
+ * Fenced code blocks (```` ``` ```` or `~~~`, same rules as {@link findAtxHeadings}) in document
+ * order. The chunker prefers not to cut inside them.
+ */
+export function findFencedBlocks(text: string): FencedBlock[] {
+  const blocks: FencedBlock[] = [];
+  let offset = 0;
+  let open: { fence: string; start: number } | undefined;
+  for (const line of text.split('\n')) {
+    const fence = FENCE.exec(line)?.[1];
+    if (fence !== undefined) {
+      if (open === undefined) {
+        open = { fence, start: offset };
+      } else if (fence[0] === open.fence[0] && fence.length >= open.fence.length) {
+        blocks.push({ start: open.start, end: offset + line.length });
+        open = undefined;
+      }
+    }
+    offset += line.length + 1;
+  }
+  if (open !== undefined) {
+    blocks.push({ start: open.start, end: text.length });
+  }
+  return blocks;
+}

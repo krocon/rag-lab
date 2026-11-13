@@ -8,6 +8,11 @@ import type { ChunkDraft } from './chunker.js';
 export interface ChunkMetadataFields {
   /** Length of the leading part repeated from the preceding chunk. */
   overlapChars?: number;
+  /** 1-based line range (chunks stored since prompt 017). */
+  startLine?: number;
+  endLine?: number;
+  /** Enclosing top-level declaration(s) of source code. */
+  symbol?: string;
   [key: string]: unknown;
 }
 
@@ -54,6 +59,8 @@ export interface ChunksRepository {
 export interface ChunkToEmbed {
   id: string;
   content: string;
+  headingPath: string[];
+  metadata: ChunkMetadataFields;
 }
 
 export interface ChunkEmbedding {
@@ -105,7 +112,12 @@ export function createChunksRepository(db: Database): ChunksRepository {
 
     listWithoutEmbedding: (documentId) =>
       db
-        .select({ id: chunks.id, content: chunks.content })
+        .select({
+          id: chunks.id,
+          content: chunks.content,
+          headingPath: chunks.headingPath,
+          metadata: chunks.metadata,
+        })
         .from(chunks)
         .where(and(eq(chunks.documentId, documentId), isNull(chunks.embedding)))
         .orderBy(asc(chunks.chunkIndex)),
@@ -156,6 +168,11 @@ function toRow(document: { id: string; collectionId: string }, draft: ChunkDraft
     charCount: draft.charCount,
     tokenEstimate: draft.tokenEstimate,
     headingPath: draft.headingPath,
-    metadata: { overlapChars: draft.overlapChars } satisfies ChunkMetadataFields,
+    metadata: {
+      overlapChars: draft.overlapChars,
+      startLine: draft.startLine,
+      endLine: draft.endLine,
+      ...(draft.symbol === null ? {} : { symbol: draft.symbol }),
+    } satisfies ChunkMetadataFields,
   };
 }

@@ -36,11 +36,19 @@ collections 1 ──── n documents 1 ──── n chunks (inkl. embedding 
 | `embedding_provider`       | `text` NOT NULL        | Provider zum Zeitpunkt der Anlage, z. B. `ollama`                           |
 | `embedding_model`          | `text` NOT NULL        | Modell, mit dem alle Chunks dieser Collection eingebettet sind              |
 | `embedding_dimensions`     | `integer` NOT NULL     | muss zur Spalte `chunks.embedding` passen                                   |
+| `source`                   | `jsonb` NULL           | Import-Quelle (017): `kind`, `url` (ohne Zugangsdaten), `ref`, `commit`, `importedAt` |
 | `created_at`, `updated_at` | `timestamptz` NOT NULL |                                                                             |
 
 Das Embedding-Modell wird pro Collection festgehalten, damit ein späterer Modellwechsel erkannt
 werden kann (Suche mit anderem Modell als bei der Indexierung ist fachlich falsch → Fehler bzw.
 Re-Indexierung erforderlich).
+
+`source` (Prompt 017, [ADR 0004](adr/0004-source-import.md)) setzt `pnpm kb:import` über
+`PUT /api/collections/:id/source`; der Service validiert (`kind` ∈ `directory`/`git`, `url` nur
+`https://`, `ssh://`, `git@host:path` **ohne** Zugangsdaten, `ref` ohne Sonderzeichen, `commit` als
+40/64-stellige Hex-SHA) und setzt `importedAt`. Mit `url` + `commit` eines bekannten Hosts bildet
+der Server Links auf den Quelltext (`sourceUrl`). Eine Collection hat genau eine Quelle (die
+zuletzt importierte).
 
 ### `documents`
 
@@ -48,8 +56,9 @@ Re-Indexierung erforderlich).
 | -------------------------- | ------------------------------- | ----------------------------------------------------------------------- |
 | `id`                       | `uuid` PK                       |                                                                         |
 | `collection_id`            | `uuid` FK → `collections`       | `ON DELETE CASCADE`, Index                                              |
-| `filename`                 | `text` NOT NULL                 | Originalname, nur zur Anzeige (bereinigt)                               |
-| `mime_type`                | `text` NOT NULL                 | `text/markdown` oder `text/plain`                                       |
+| `filename`                 | `text` NOT NULL                 | Originalname bzw. letztes Pfadsegment, nur zur Anzeige (bereinigt)      |
+| `path`                     | `text` NULL                     | relativer Pfad im Import (017); Unique `(collection_id, path)` partiell |
+| `mime_type`                | `text` NOT NULL                 | aus der Endung (Allowlist, `ingestion/file-type.ts`); bestimmt Sprache  |
 | `size_bytes`               | `integer` NOT NULL              | Größe der Originaldatei                                                 |
 | `content_sha256`           | `text` NOT NULL                 | Hash des normalisierten Texts; Unique `(collection_id, content_sha256)` |
 | `content`                  | `text` NOT NULL                 | normalisierter Volltext (Basis für Re-Chunking und Quellenansicht)      |
@@ -58,6 +67,15 @@ Re-Indexierung erforderlich).
 | `chunk_count`              | `integer` NOT NULL DEFAULT 0    |                                                                         |
 | `metadata`                 | `jsonb` NOT NULL DEFAULT `'{}'` | `title` aus erster Markdown-Überschrift (004), sonst `{}`               |
 | `created_at`, `updated_at` | `timestamptz` NOT NULL          |                                                                         |
+
+`path` (Prompt 017): vom Client im Formularfeld `path` gesendet, streng validiert (relativ, `/` als
+Trenner, keine `.`/`..`/leeren Segmente, keine Steuer-, Bidi- oder unsichtbaren Zeichen, keine
+Leerzeichen am Segmentrand, Segment ≤ 255, gesamt ≤ 512 Zeichen, NFC). Die 512 Zeichen halten
+den btree-Eintrag des Unique-Index unter der Größengrenze. `NULL` für Uploads ohne Pfad (Web-App,
+`demo:seed`); der partielle Index `WHERE path IS NOT NULL` betrifft sie nicht. Reine
+Anzeige-/Metadaten-Information, nie ein Dateisystempfad. Die Sprache (`language` im DTO) wird
+aus `mime_type` abgeleitet und nicht gespeichert. Liste: sortiert nach `path ASC NULLS LAST`,
+Präfixfilter mit `starts_with(path, $1)` (wörtlich, ohne LIKE-Platzhalter).
 
 Statusübergänge: `pending → processing → ready | failed`; `failed → processing` bei erneutem Versuch;
 `failed | ready → pending` per Reindex (006, `ready` nur mit fehlenden Embeddings).
@@ -80,10 +98,15 @@ atomar `processing` (`UPDATE … WHERE status IN ('pending','failed') RETURNING 
 | `start_offset`, `end_offset` | `integer` NOT NULL               | Zeichenpositionen im normalisierten Dokumenttext                                |
 | `char_count`                 | `integer` NOT NULL               |                                                                                 |
 | `token_estimate`             | `integer` NULL                   | grobe Schätzung (`ceil(char_count / 4)`), nur informativ                        |
-| `heading_path`               | `text[]` NOT NULL DEFAULT `'{}'` | z. B. `{"Installation","Docker"}` (Markdown)                                    |
-| `metadata`                   | `jsonb` NOT NULL DEFAULT `'{}'`  | erweiterbar (z. B. Seitenzahl bei späteren Formaten)                            |
+| `heading_path`               | `text[]` NOT NULL DEFAULT `'{}'` | z. B. `{"Installation","Docker"}` (Markdown); Code: `{Pfad, Symbol}`            |
+| `metadata`                   | `jsonb` NOT NULL DEFAULT `'{}'`  | `overlapChars`; seit 017 `startLine`, `endLine` (1-basiert), `symbol` (Code)    |
 | `embedding`                  | `vector(768)` NULL               | NULL bis eingebettet; Dimension = `EMBEDDING_DIMENSIONS`                        |
 | `created_at`, `updated_at`   | `timestamptz` NOT NULL           |                                                                                 |
+
+Chunk-Metadaten seit Prompt 017: `startLine`/`endLine` (Zeile des ersten und letzten Zeichens,
+für alle Formate) und bei Quellcode `symbol` (umgebende Top-Level-Deklaration(en), z. B.
+`class TreeTableModel`). Chunks, die vor 017 gespeichert wurden, haben diese Schlüssel nicht
+(`null` im DTO), bis das Dokument neu indexiert wird; es gibt keine Datenmigration.
 
 Indizes:
 
@@ -91,6 +114,7 @@ Indizes:
 - HNSW: `CREATE INDEX … ON chunks USING hnsw (embedding vector_cosine_ops)` – passend zum
   Operator `<=>` (Cosinus-Distanz)
 - `documents (collection_id, status)`
+- `documents (collection_id, path) WHERE path IS NOT NULL` – eindeutig; Sortierung und Präfixfilter
 
 ## Umsetzung
 
@@ -98,6 +122,7 @@ Indizes:
 | -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `0000_enable_pgvector.sql` | Custom (Prompt 001)       | `CREATE EXTENSION IF NOT EXISTS vector`                                                                         |
 | `0001_domain_model.sql`    | generiert (`db:generate`) | Enum `document_status`, Tabellen, FKs (`ON DELETE CASCADE`), Unique-/CHECK-Constraints, alle Indizes inkl. HNSW |
+| `0002_source_import.sql`   | generiert (Prompt 017)    | `collections.source` (jsonb), `documents.path` + partieller Unique-Index `(collection_id, path) WHERE path IS NOT NULL` + CHECK Länge 1–512 |
 
 Index- und Constraint-Namen (stabil, werden im Code referenziert):
 

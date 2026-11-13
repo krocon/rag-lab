@@ -27,6 +27,7 @@ function routeCases(collectionId: string): RouteCase[] {
     { method: 'GET', url: '/api/collections/:id' },
     { method: 'PATCH', url: '/api/collections/:id', body: { name: 'Renamed' } },
     { method: 'DELETE', url: '/api/collections/:id' },
+    { method: 'PUT', url: '/api/collections/:id/source', body: { kind: 'directory' } },
     { method: 'GET', url: '/api/collections/:id/documents' },
     { method: 'POST', url: '/api/collections/:id/documents' },
     { method: 'GET', url: '/api/documents/:id' },

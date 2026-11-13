@@ -28,6 +28,16 @@ import { VECTOR_OPCLASS } from '../modules/retrieval/similarity.js';
  */
 export const EMBEDDING_COLUMN_DIMENSIONS = 768;
 
+/** Stored form of a collection's import source (`collections.source`). */
+export interface CollectionSourceRecord {
+  kind: 'directory' | 'git';
+  url: string | null;
+  ref: string | null;
+  commit: string | null;
+  /** ISO 8601. */
+  importedAt: string;
+}
+
 export const DOCUMENT_STATUSES = ['pending', 'processing', 'ready', 'failed'] as const;
 
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -56,6 +66,8 @@ export const collections = pgTable(
     embeddingProvider: text('embedding_provider').notNull(),
     embeddingModel: text('embedding_model').notNull(),
     embeddingDimensions: integer('embedding_dimensions').notNull(),
+    // Import source (`pnpm kb:import`, ADR 0004); validated by the collections service.
+    source: jsonb('source').$type<CollectionSourceRecord>(),
     ...timestamps(),
   },
   (table) => [
@@ -77,6 +89,9 @@ export const documents = pgTable(
       .notNull()
       .references(() => collections.id, { onDelete: 'cascade' }),
     filename: text('filename').notNull(),
+    // Relative path within the imported source (display/metadata only, never a file system
+    // path); NULL for uploads without a path. Unique per collection.
+    path: text('path'),
     mimeType: text('mime_type').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
     contentSha256: text('content_sha256').notNull(),
@@ -93,6 +108,15 @@ export const documents = pgTable(
     uniqueIndex('documents_collection_id_content_sha256_unique').on(
       table.collectionId,
       table.contentSha256,
+    ),
+    // One document per path and collection (basis of `kb:import` idempotence and `--sync`);
+    // also serves ordering and the path prefix filter of the document list.
+    uniqueIndex('documents_collection_id_path_unique')
+      .on(table.collectionId, table.path)
+      .where(sql`${table.path} IS NOT NULL`),
+    check(
+      'documents_path_valid',
+      sql`${table.path} IS NULL OR char_length(${table.path}) BETWEEN 1 AND 512`,
     ),
   ],
 );

@@ -13,7 +13,10 @@
       "charCount": 161,
       "tokenEstimate": 41,
       "headingPath": [],
-      "overlapChars": 0
+      "overlapChars": 0,
+      "startLine": 1,
+      "endLine": 6,
+      "symbol": null
     },
     {
       "chunkIndex": 1,
@@ -27,7 +30,10 @@
         "Installation",
         "Docker"
       ],
-      "overlapChars": 0
+      "overlapChars": 0,
+      "startLine": 8,
+      "endLine": 14,
+      "symbol": null
     },
     {
       "chunkIndex": 2,
@@ -41,7 +47,10 @@
         "Installation",
         "Docker"
       ],
-      "overlapChars": 59
+      "overlapChars": 59,
+      "startLine": 14,
+      "endLine": 20,
+      "symbol": null
     },
     {
       "chunkIndex": 3,
@@ -56,7 +65,10 @@
         "Docker",
         "Troubleshooting"
       ],
-      "overlapChars": 0
+      "overlapChars": 0,
+      "startLine": 22,
+      "endLine": 24,
+      "symbol": null
     },
     {
       "chunkIndex": 4,
@@ -69,7 +81,10 @@
         "Getting started",
         "Configuration"
       ],
-      "overlapChars": 0
+      "overlapChars": 0,
+      "startLine": 26,
+      "endLine": 30,
+      "symbol": null
     },
     {
       "chunkIndex": 5,
@@ -82,7 +97,10 @@
         "Concepts",
         "Chunking (level jump)"
       ],
-      "overlapChars": 0
+      "overlapChars": 0,
+      "startLine": 32,
+      "endLine": 36,
+      "symbol": null
     },
     {
       "chunkIndex": 6,
@@ -95,7 +113,10 @@
         "Concepts",
         "Chunking (level jump)"
       ],
-      "overlapChars": 57
+      "overlapChars": 57,
+      "startLine": 36,
+      "endLine": 36,
+      "symbol": null
     },
     {
       "chunkIndex": 7,
@@ -108,7 +129,10 @@
         "Concepts",
         "Chunking (level jump)"
       ],
-      "overlapChars": 56
+      "overlapChars": 56,
+      "startLine": 36,
+      "endLine": 38,
+      "symbol": null
     },
     {
       "chunkIndex": 8,
@@ -121,7 +145,10 @@
         "FAQ",
         "Why characters instead of tokens?"
       ],
-      "overlapChars": 0
+      "overlapChars": 0,
+      "startLine": 40,
+      "endLine": 44,
+      "symbol": null
     }
   ]
 }

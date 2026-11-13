@@ -3,10 +3,12 @@ import type {
   CollectionDto,
   CollectionListResponse,
   CreateCollectionRequest,
+  SetCollectionSourceRequest,
   UpdateCollectionRequest,
 } from '@raglab/shared';
 import { errorResponseSchema } from '../../http/errors.js';
 import { idParamsSchema, type IdParams } from '../../http/schemas.js';
+import { MAX_SOURCE_REF_LENGTH, MAX_SOURCE_URL_LENGTH } from './collection-source.js';
 import type { CollectionsService } from './collections.service.js';
 
 const NAME_MAX_LENGTH = 120;
@@ -24,6 +26,7 @@ export const collectionSchema = {
     'documentCount',
     'readyDocumentCount',
     'chunkCount',
+    'source',
     'createdAt',
     'updatedAt',
   ],
@@ -37,6 +40,17 @@ export const collectionSchema = {
     documentCount: { type: 'integer' },
     readyDocumentCount: { type: 'integer' },
     chunkCount: { type: 'integer' },
+    source: {
+      type: ['object', 'null'],
+      required: ['kind', 'url', 'ref', 'commit', 'importedAt'],
+      properties: {
+        kind: { type: 'string', enum: ['directory', 'git'] },
+        url: { type: ['string', 'null'] },
+        ref: { type: ['string', 'null'] },
+        commit: { type: ['string', 'null'] },
+        importedAt: { type: 'string', format: 'date-time' },
+      },
+    },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -141,6 +155,36 @@ export const collectionsRoutes: FastifyPluginAsync<{ collections: CollectionsSer
       },
     },
     async (request) => collections.update(request.params.id, request.body),
+  );
+
+  app.put<{ Params: IdParams; Body: SetCollectionSourceRequest; Reply: CollectionDto }>(
+    '/collections/:id/source',
+    {
+      schema: {
+        tags: ['collections'],
+        summary: 'Record where the documents of a collection were imported from',
+        description: [
+          'Set by `pnpm kb:import` after an import. `url` must not contain credentials',
+          '(`400 INVALID_SOURCE`); `commit` is a full hex SHA. With `url` and `commit` of a known host',
+          '(GitHub, GitLab, Bitbucket, Codeberg), sources link to the file at that commit.',
+          '`importedAt` is set by the server.',
+        ].join(' '),
+        params: idParamsSchema,
+        body: {
+          type: 'object',
+          required: ['kind'],
+          additionalProperties: false,
+          properties: {
+            kind: { type: 'string', enum: ['directory', 'git'] },
+            url: { type: ['string', 'null'], maxLength: MAX_SOURCE_URL_LENGTH },
+            ref: { type: ['string', 'null'], maxLength: MAX_SOURCE_REF_LENGTH },
+            commit: { type: ['string', 'null'], maxLength: 64 },
+          },
+        },
+        response: { 200: collectionSchema, 400: errorResponseSchema, 404: errorResponseSchema },
+      },
+    },
+    async (request) => collections.setSource(request.params.id, request.body),
   );
 
   app.delete<{ Params: IdParams }>(

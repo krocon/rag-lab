@@ -5,6 +5,8 @@ export interface IndexingDocument {
   id: string;
   collectionId: string;
   filename: string;
+  /** Relative path within the imported source; `null` for uploads without a path. */
+  path: string | null;
   mimeType: string;
   /** Normalised text (see `normalizeText`). */
   content: string;

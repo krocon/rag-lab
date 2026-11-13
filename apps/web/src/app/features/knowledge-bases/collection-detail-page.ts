@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,22 +21,36 @@ import { ApiRequestError, toApiRequestError } from '../../core/api/api-error';
 import { KnowledgeApi } from '../../core/api/knowledge-api';
 import { plural } from '../../core/util/format';
 import { pollWhile } from '../../core/util/polling';
+import { safeHttpsUrl, shortCommit } from '../../core/util/source-location';
 import { ConfirmDialog } from '../../shared/ui/confirm-dialog';
+import { ExternalLink } from '../../shared/ui/external-link';
 import { CollectionForm, type CollectionFormValue } from './collection-form';
 import { DOCUMENT_STATUS_PRESENTATION, isActiveStatus } from './document-status';
 import { DocumentTable } from './document-table';
 import { DocumentUpload } from './document-upload';
 
+/** Documents per page of the document table (the API allows up to 1000). */
+export const DOCUMENT_PAGE_SIZE = 100;
+
 type PendingDelete = { kind: 'collection' } | { kind: 'document'; document: DocumentDto };
 
 /**
- * `/knowledge-bases/:collectionId`: collection header (edit, delete), upload and document table.
- * While documents are `pending`/`processing`, their status is polled (stops when all are done or
- * the page is left).
+ * `/knowledge-bases/:collectionId`: collection header (edit, delete), import source, upload and
+ * document table. The table is filtered by path prefix and paginated on the server, so it stays
+ * usable with thousands of imported files. While documents of the current page are
+ * `pending`/`processing`, their status is polled (stops when all are done or the page is left).
  */
 @Component({
   selector: 'rl-collection-detail-page',
-  imports: [RouterLink, CollectionForm, ConfirmDialog, DocumentTable, DocumentUpload],
+  imports: [
+    DatePipe,
+    RouterLink,
+    CollectionForm,
+    ConfirmDialog,
+    DocumentTable,
+    DocumentUpload,
+    ExternalLink,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <nav class="rl-breadcrumb" aria-label="Breadcrumb">
@@ -110,6 +125,38 @@ type PendingDelete = { kind: 'collection' } | { kind: 'document'; document: Docu
         <dd>{{ kb.documentCount }} ({{ kb.readyDocumentCount }} ready)</dd>
         <dt>Chunks</dt>
         <dd>{{ kb.chunkCount }}</dd>
+        @if (kb.source; as source) {
+          <dt>Imported from</dt>
+          <dd data-testid="import-source">
+            {{ source.kind === 'git' ? 'Git repository' : 'Local directory' }}
+            @if (source.url; as url) {
+              <br />
+              @if (isSafeUrl(url)) {
+                <rl-external-link [url]="url" [label]="url" />
+              } @else {
+                <code class="source-url">{{ url }}</code>
+              }
+            }
+          </dd>
+          @if (source.ref) {
+            <dt>Ref</dt>
+            <dd>
+              <code>{{ source.ref }}</code>
+            </dd>
+          }
+          @if (source.commit; as commit) {
+            <dt>Commit</dt>
+            <dd>
+              <code [attr.title]="commit" data-testid="import-commit">{{ short(commit) }}</code>
+            </dd>
+          }
+          <dt>Imported</dt>
+          <dd>
+            <time [attr.datetime]="source.importedAt">{{
+              source.importedAt | date: 'medium'
+            }}</time>
+          </dd>
+        }
       </dl>
 
       @if (providerProblem(); as problem) {
@@ -158,16 +205,68 @@ type PendingDelete = { kind: 'collection' } | { kind: 'document'; document: Docu
             <button type="button" class="rl-btn" (click)="documents.reload()">Try again</button>
           </div>
         } @else if (documents.hasValue()) {
-          @if (documents.value().length === 0) {
-            <p class="rl-muted">No documents yet. Upload Markdown or text files above.</p>
+          @let page = documents.value();
+          @if (page.total === 0 && !pathPrefix()) {
+            <p class="rl-muted">
+              No documents yet. Upload files above or import a directory or repository with
+              <code>pnpm kb:import</code>.
+            </p>
           } @else {
-            <rl-document-table
-              [documents]="documents.value()"
-              [caption]="tableCaption()"
-              [busyIds]="busyIds()"
-              (reindex)="reindex($event)"
-              (remove)="askDeleteDocument($event)"
-            />
+            <form class="filter" role="search" (submit)="applyFilter($event, filterInput.value)">
+              <label for="path-prefix">Path prefix</label>
+              <input
+                #filterInput
+                id="path-prefix"
+                name="pathPrefix"
+                type="search"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="e.g. packages/table/src/"
+                [value]="pathPrefix()"
+              />
+              <button type="submit" class="rl-btn rl-btn--small">Filter</button>
+              @if (pathPrefix()) {
+                <button type="button" class="rl-btn rl-btn--small" (click)="clearFilter()">
+                  Clear filter
+                </button>
+              }
+            </form>
+            @if (page.total === 0) {
+              <p class="rl-muted" data-testid="no-matches">
+                No document path starts with “{{ pathPrefix() }}”.
+              </p>
+            } @else {
+              <rl-document-table
+                [documents]="page.items"
+                [caption]="tableCaption()"
+                [busyIds]="busyIds()"
+                (reindex)="reindex($event)"
+                (remove)="askDeleteDocument($event)"
+              />
+              <nav class="pager" aria-label="Document pages">
+                <span data-testid="page-range"
+                  >{{ pageRange().from }}–{{ pageRange().to }} of {{ page.total }}</span
+                >
+                @if (page.total > pageSize) {
+                  <button
+                    type="button"
+                    class="rl-btn rl-btn--small"
+                    [disabled]="offset() === 0"
+                    (click)="previousPage()"
+                  >
+                    <span aria-hidden="true">←</span> Previous
+                  </button>
+                  <button
+                    type="button"
+                    class="rl-btn rl-btn--small"
+                    [disabled]="offset() + pageSize >= page.total"
+                    (click)="nextPage()"
+                  >
+                    Next <span aria-hidden="true">→</span>
+                  </button>
+                }
+              </nav>
+            }
           }
         }
       </section>
@@ -217,6 +316,29 @@ type PendingDelete = { kind: 'collection' } | { kind: 'document'; document: Docu
     .documents-header h2 {
       margin: 0;
     }
+    .source-url {
+      overflow-wrap: anywhere;
+    }
+    .filter {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .filter input {
+      flex: 1 1 16rem;
+      max-width: 32rem;
+      font-family: var(--rl-mono);
+    }
+    .pager {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.75rem;
+      font-variant-numeric: tabular-nums;
+    }
   `,
 })
 export class CollectionDetailPage {
@@ -227,15 +349,35 @@ export class CollectionDetailPage {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   protected readonly count = plural;
+  protected readonly short = shortCommit;
+  protected readonly pageSize = DOCUMENT_PAGE_SIZE;
+
+  /** Applied path-prefix filter (`''` = all documents). */
+  protected readonly pathPrefix = signal('');
+  /** Offset of the current page. */
+  protected readonly offset = signal(0);
 
   protected readonly collection = rxResource({
     params: () => this.collectionId(),
     stream: ({ params }) => this.api.getCollection(params),
   });
   protected readonly documents = rxResource({
-    params: () => this.collectionId(),
-    stream: ({ params }) => this.api.listDocuments(params),
+    params: () => ({
+      collectionId: this.collectionId(),
+      pathPrefix: this.pathPrefix(),
+      offset: this.offset(),
+    }),
+    stream: ({ params }) =>
+      this.api.listDocumentPage(params.collectionId, {
+        pathPrefix: params.pathPrefix,
+        limit: DOCUMENT_PAGE_SIZE,
+        offset: params.offset,
+      }),
   });
+  /** Documents of the current page (empty while loading or after an error). */
+  private readonly pageItems = computed(() =>
+    this.documents.hasValue() ? this.documents.value().items : [],
+  );
   private readonly providers = rxResource({ stream: () => this.api.getProviders() });
 
   /** Embedding provider problems that make indexing fail (reported by the API, not guessed). */
@@ -257,17 +399,27 @@ export class CollectionDetailPage {
     };
   });
 
-  protected readonly polling = computed(
-    () =>
-      this.documents.hasValue() &&
-      this.documents.value().some((document) => isActiveStatus(document.status)),
+  protected readonly polling = computed(() =>
+    this.pageItems().some((document) => isActiveStatus(document.status)),
   );
 
+  protected readonly pageRange = computed(() => {
+    const total = this.documents.hasValue() ? this.documents.value().total : 0;
+    const from = Math.min(total, this.offset() + 1);
+    return { from, to: Math.min(total, this.offset() + this.pageItems().length) };
+  });
+
   protected readonly tableCaption = computed(() => {
-    const documents = this.documents.hasValue() ? this.documents.value() : [];
+    const documents = this.pageItems();
+    const total = this.documents.hasValue() ? this.documents.value().total : 0;
     const active = documents.filter((document) => isActiveStatus(document.status)).length;
     const failed = documents.filter((document) => document.status === 'failed').length;
-    const parts = [plural(documents.length, 'document')];
+    const parts = [plural(total, 'document')];
+    if (this.pathPrefix()) parts[0] += ` matching “${this.pathPrefix()}”`;
+    if (total > documents.length) {
+      const { from, to } = this.pageRange();
+      parts.push(`showing ${from}–${to}`);
+    }
     if (active > 0) parts.push(`${active} in progress`);
     if (failed > 0) parts.push(`${failed} failed`);
     return `Documents: ${parts.join(', ')}`;
@@ -301,10 +453,37 @@ export class CollectionDetailPage {
       () => this.documents.reload(),
     );
     this.announceStatusChanges();
+    this.keepOffsetInRange();
   }
 
   protected isNotFound(error: Error): boolean {
     return error instanceof ApiRequestError && error.status === 404;
+  }
+
+  protected isSafeUrl(url: string): boolean {
+    return safeHttpsUrl(url) !== null;
+  }
+
+  protected applyFilter(event: Event, value: string): void {
+    event.preventDefault();
+    const prefix = value.trim();
+    if (prefix !== this.pathPrefix()) {
+      this.pathPrefix.set(prefix);
+      this.offset.set(0);
+    }
+  }
+
+  protected clearFilter(): void {
+    this.pathPrefix.set('');
+    this.offset.set(0);
+  }
+
+  protected previousPage(): void {
+    this.offset.update((offset) => Math.max(0, offset - DOCUMENT_PAGE_SIZE));
+  }
+
+  protected nextPage(): void {
+    this.offset.update((offset) => offset + DOCUMENT_PAGE_SIZE);
   }
 
   protected onUploaded(): void {
@@ -419,10 +598,27 @@ export class CollectionDetailPage {
 
   private replaceDocument(updated: DocumentDto): void {
     if (this.documents.hasValue()) {
-      this.documents.set(
-        this.documents.value().map((document) => (document.id === updated.id ? updated : document)),
-      );
+      const page = this.documents.value();
+      this.documents.set({
+        ...page,
+        items: page.items.map((document) => (document.id === updated.id ? updated : document)),
+      });
     }
+  }
+
+  /** After deletions the current page may lie behind the end: go to the last page instead. */
+  private keepOffsetInRange(): void {
+    effect(() => {
+      if (!this.documents.hasValue()) {
+        return;
+      }
+      const { items, total } = this.documents.value();
+      const offset = untracked(() => this.offset());
+      if (items.length === 0 && total > 0 && offset >= total) {
+        const lastPage = Math.floor((total - 1) / DOCUMENT_PAGE_SIZE) * DOCUMENT_PAGE_SIZE;
+        untracked(() => this.offset.set(lastPage));
+      }
+    });
   }
 
   /** Announces status transitions (e.g. processing → ready) via the polite live region. */
@@ -432,7 +628,7 @@ export class CollectionDetailPage {
       if (!this.documents.hasValue()) {
         return;
       }
-      const documents = this.documents.value();
+      const documents = this.documents.value().items;
       const messages: string[] = [];
       let finished = false;
       for (const document of documents) {

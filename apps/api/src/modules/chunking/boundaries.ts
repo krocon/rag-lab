@@ -122,34 +122,71 @@ export function startsSentence(text: string, position: number): boolean {
   return before === 0 || lineBreak || endsSentence(text, before);
 }
 
+/** Options of {@link findCut}. */
+export interface CutOptions {
+  /**
+   * Source code: no sentence boundaries (a `.` in a comment is no reason to cut mid-line), so cuts
+   * fall on blank lines, then line ends; word ends only for a line longer than the budget.
+   */
+  code?: boolean;
+  /**
+   * Positions the cut should avoid (inside a Markdown code block that fits into one chunk): a
+   * line, sentence or paragraph end outside them wins over any boundary inside them.
+   */
+  isProtected?: (position: number) => boolean;
+}
+
+/** Level of the boundary at `position` for source code (see {@link CutOptions.code}). */
+export function codeBoundaryLevel(text: string, position: number): BoundaryLevel {
+  const breaks = lineBreaksAhead(text, position);
+  return breaks >= 2 ? BoundaryLevel.Paragraph : breaks === 1 ? BoundaryLevel.Line : BoundaryLevel.Word;
+}
+
+const LEVELS_COARSE_TO_FINE = [
+  BoundaryLevel.Paragraph,
+  BoundaryLevel.Sentence,
+  BoundaryLevel.Line,
+  BoundaryLevel.Word,
+] as const;
+
 /**
  * Best cut position in `(from, from + budget]` for a unit starting at `from` (non-whitespace):
  * the last boundary of the coarsest level available. Boundaries before `minPosition` are only
  * used if there is no line, sentence or paragraph end at or after it (the chunker uses this to
  * keep a heading line together with the start of its section body without cutting mid-sentence). Without any boundary (a word longer than
  * `budget`) the cut is hard at `from + budget`, but never between the two halves of a surrogate
- * pair.
+ * pair. See {@link CutOptions} for source code and protected ranges.
  */
 export function findCut(
   text: string,
   from: number,
   budget: number,
   minPosition = from + 1,
+  options: CutOptions = {},
 ): { position: number; level: BoundaryLevel } {
+  const levelAt = options.code ? codeBoundaryLevel : boundaryLevel;
   const best: (number | undefined)[] = [];
+  const bestUnprotected: (number | undefined)[] = [];
   const limit = Math.min(from + budget, text.length);
   for (let position = Math.max(minPosition, from + 1); position <= limit; position++) {
     if (isWordEnd(text, position)) {
-      best[boundaryLevel(text, position)] = position;
+      const level = levelAt(text, position);
+      best[level] = position;
+      if (options.isProtected && !options.isProtected(position)) {
+        bestUnprotected[level] = position;
+      }
     }
   }
   const restricted = minPosition > from + 1;
-  for (const level of [
-    BoundaryLevel.Paragraph,
-    BoundaryLevel.Sentence,
-    BoundaryLevel.Line,
-    BoundaryLevel.Word,
-  ]) {
+  if (options.isProtected) {
+    for (const level of LEVELS_COARSE_TO_FINE) {
+      const position = bestUnprotected[level];
+      if (position !== undefined && level >= BoundaryLevel.Line) {
+        return { position, level };
+      }
+    }
+  }
+  for (const level of LEVELS_COARSE_TO_FINE) {
     const position = best[level];
     // A restricted search must not trade a line/sentence/paragraph end for a mid-sentence cut.
     if (position !== undefined && !(restricted && level < BoundaryLevel.Line)) {
@@ -157,7 +194,7 @@ export function findCut(
     }
   }
   if (restricted) {
-    return findCut(text, from, budget);
+    return findCut(text, from, budget, from + 1, options);
   }
   return { position: hardCut(text, from, budget), level: BoundaryLevel.Hard };
 }

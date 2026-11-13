@@ -1,0 +1,95 @@
+/**
+ * Sample source file for the RAGLab code chunker golden test (self-written, MIT).
+ * A tiny tree table: rows with children, flattened for rendering.
+ */
+import { EventEmitter } from 'node:events';
+import type { Comparator } from './sorting';
+
+export type RowId = string | number;
+
+export interface TreeRow<T> {
+  id: RowId;
+  data: T;
+  children?: TreeRow<T>[];
+  expanded?: boolean;
+}
+
+export const DEFAULT_INDENT = 16;
+
+/**
+ * Options of {@link TreeTableModel}.
+ * `childrenKey` names the property that holds nested rows.
+ */
+export interface TreeTableOptions {
+  childrenKey: string;
+  indent: number;
+  sort?: Comparator<unknown>;
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class TreeTableModel<T> extends EventEmitter {
+  private readonly rows: TreeRow<T>[];
+
+  constructor(
+    rows: TreeRow<T>[],
+    private readonly options: TreeTableOptions = { childrenKey: 'children', indent: DEFAULT_INDENT },
+  ) {
+    super();
+    this.rows = rows;
+  }
+
+  /** Visible rows in display order: children follow their expanded parent. */
+  visibleRows(): { row: TreeRow<T>; depth: number }[] {
+    const result: { row: TreeRow<T>; depth: number }[] = [];
+    const visit = (rows: TreeRow<T>[], depth: number) => {
+      for (const row of rows) {
+        result.push({ row, depth });
+        if (row.expanded && row.children) {
+          visit(row.children, depth + 1);
+        }
+      }
+    };
+    visit(this.rows, 0);
+    return result;
+  }
+
+  toggle(id: RowId): void {
+    const row = this.find(id);
+    if (row) {
+      row.expanded = !row.expanded;
+      this.emit('change', row);
+    }
+  }
+
+  private find(id: RowId, rows: TreeRow<T>[] = this.rows): TreeRow<T> | undefined {
+    for (const row of rows) {
+      if (row.id === id) {
+        return row;
+      }
+      const child = row.children ? this.find(id, row.children) : undefined;
+      if (child) {
+        return child;
+      }
+    }
+    return undefined;
+  }
+}
+
+/** Builds a model from flat records with a `parentId` (e.g. rows from a database). */
+export function createTreeTableModel<T extends { id: RowId; parentId?: RowId }>(
+  records: T[],
+): TreeTableModel<T> {
+  const byId = new Map<RowId, TreeRow<T>>();
+  for (const record of records) {
+    byId.set(record.id, { id: record.id, data: record, children: [] });
+  }
+  const roots: TreeRow<T>[] = [];
+  for (const record of records) {
+    const row = byId.get(record.id)!;
+    const parent = record.parentId === undefined ? undefined : byId.get(record.parentId);
+    (parent?.children ?? roots).push(row);
+  }
+  return new TreeTableModel(roots);
+}

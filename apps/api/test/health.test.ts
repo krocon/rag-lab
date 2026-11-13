@@ -6,6 +6,7 @@ import type { DatabaseProbe } from '../src/db/probe.js';
 import { createInMemoryServices, healthyProbe } from './fakes.js';
 import { testConfig } from './helpers.js';
 import { API_VERSION } from '../src/version.js';
+import { SUPPORTED_EXTENSIONS } from '../src/modules/ingestion/file-type.js';
 
 const unreachableProbe: DatabaseProbe = {
   check: async () => ({
@@ -136,7 +137,9 @@ describe('GET /api/system/info', () => {
     expect(body.upload).toEqual({
       maxFileBytes: 5 * 1024 * 1024,
       maxFiles: 20,
-      allowedExtensions: ['.md', '.markdown', '.txt'],
+      maxRequestBytes: 100 * 1024 * 1024,
+      maxDocumentsPerCollection: null,
+      allowedExtensions: SUPPORTED_EXTENSIONS,
     });
     expect(response.body).not.toContain('postgresql://');
   });

@@ -6,6 +6,7 @@ import {
   EmbeddingProviderError,
   type EmbeddingProvider,
 } from './embedding-provider.js';
+import { embeddingText } from './embedding-text.js';
 
 export const EMBEDDING_STEP_NAME = 'embedding';
 
@@ -95,8 +96,16 @@ export function createEmbeddingStep({
 
       let vectors: number[][];
       try {
+        // Imported documents get a context header (path, symbol); see embedding-text.ts.
         vectors = await provider.embed(
-          pending.map((chunk) => chunk.content),
+          pending.map((chunk) =>
+            embeddingText({
+              path: document.path,
+              content: chunk.content,
+              symbol: typeof chunk.metadata.symbol === 'string' ? chunk.metadata.symbol : null,
+              headingPath: chunk.headingPath,
+            }),
+          ),
           signal,
         );
         // Never trust an adapter blindly: count and length are checked again before storing.

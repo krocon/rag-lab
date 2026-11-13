@@ -1,19 +1,22 @@
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, join, sep } from 'node:path';
 import { z } from 'zod';
 import { findAtxHeadings } from '../modules/chunking/markdown-sections.js';
+import { SUPPORTED_EXTENSIONS } from '../modules/ingestion/file-type.js';
 import { normalizeText } from '../modules/ingestion/normalize.js';
 
 /**
- * Evaluation dataset (format: eval/README.md): Markdown/TXT documents plus `queries.jsonl` with
+ * Evaluation dataset (format: eval/README.md): documents of every uploadable type (Markdown, text,
+ * source code), also in subdirectories – identified by their relative path – plus `queries.jsonl` with
  * one question per line and its relevance anchors. Anchors reference stable parts of the text –
  * document name, heading text or a text marker – never chunk ids, so changing the chunking does not
  * break the gold labels.
  */
 
 export const QUERIES_FILE = 'queries.jsonl';
-const DOCUMENT_EXTENSIONS = ['.md', '.txt'];
+/** Every type the API accepts (Markdown, text, source code). */
+const DOCUMENT_EXTENSIONS: readonly string[] = SUPPORTED_EXTENSIONS;
 
 const anchorSchema = z
   .strictObject({
@@ -205,11 +208,16 @@ export function parseDataset(
   return { name, documents: [...documents], queries, sha256: hash.digest('hex') };
 }
 
-/** Reads a dataset directory: every `.md`/`.txt` file is a document, plus `queries.jsonl`. */
+/**
+ * Reads a dataset directory: every file with an uploadable extension (also in subdirectories) is a
+ * document, named by its relative path with `/`; plus `queries.jsonl`.
+ */
 export async function loadDataset(directory: string): Promise<EvalDataset> {
   let entries: string[];
   try {
-    entries = await readdir(directory);
+    entries = (await readdir(directory, { recursive: true })).map((entry) =>
+      entry.split(sep).join('/'),
+    );
   } catch {
     throw new DatasetError([`dataset directory not found: ${directory}`]);
   }
@@ -222,7 +230,7 @@ export async function loadDataset(directory: string): Promise<EvalDataset> {
   const documents = await Promise.all(
     filenames.map(async (filename) => ({
       filename,
-      raw: await readFile(join(directory, filename), 'utf8'),
+      raw: await readFile(join(directory, ...filename.split('/')), 'utf8'),
     })),
   );
   const queries = await readFile(join(directory, QUERIES_FILE), 'utf8');

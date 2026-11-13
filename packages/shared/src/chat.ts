@@ -27,8 +27,17 @@ export interface ChatSource {
   chunkId: string;
   chunkIndex: number;
   filename: string;
+  /** Relative path of the document (`null` for uploads without a path). */
+  path: string | null;
+  language: string;
   headingPath: string[];
   content: string;
+  /** 1-based line range; `null` for chunks stored before prompt 017. */
+  startLine: number | null;
+  endLine: number | null;
+  symbol: string | null;
+  /** Link to the lines at the imported commit (known hosts only), else `null`. */
+  sourceUrl: string | null;
   /** `1 - distance` (cosine similarity), -1..1, higher = more similar. */
   score: number;
   /** Cosine distance from `<=>`, 0..2, lower = more similar. */
