@@ -174,7 +174,7 @@ services:
 
   ollama:
     profiles: [ollama]
-    image: ollama/ollama:0.40.13
+    image: ollama/ollama:0.40.15
     restart: unless-stopped
     ports:
       - '127.0.0.1:11434:11434'
