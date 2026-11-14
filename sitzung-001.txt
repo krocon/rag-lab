@@ -1,0 +1,69 @@
+▗ ▗   ▖ ▖  Claude Code v2.1.323
+           Fable 5.2 · Claude Ultra
+ ▘▘   ▝▝   ~/WebstormProjects/rag-lab
+
+▎ [✻] [✻] [✻] · Share Claude Code and earn $10 in usage credits · /passes
+
+❯ Füge dem MCP-Server ein fünftes Werkzeug hinzu, das die Dokumente einer       
+  Wissensbasis auflistet – mit Test.                                            
+
+  Read 1 file, ran 6 shell commands (ctrl+o to expand)
+
+⏺ Jetzt das Tool, Client-Erweiterung, Fakes und Tests.
+
+⏺ Write(apps/mcp/src/tools/list-documents.ts)
+  ⎿  Wrote 211 lines to apps/mcp/src/tools/list-documents.ts
+      1 import type { McpServer } from '@modelcontextprotocol/sdk/server/
+        mcp.js';
+      2 import type { DocumentDto } from '@raglab/shared';
+      3 import { z } from 'zod';
+      4 import { resolveCollection } from '../collections.js';
+      5 import { truncate, UNTRUSTED_NOTICE, untrustedBlock } from '../fo
+        rmat.js';
+      6 import { READ_ONLY, runTool, success, type ToolContext } from './
+        context.js';
+      7 import { collectionInput } from './search-knowledge.js';
+     … +204 lines (ctrl+o to expand)
+
+  Ran 6 shell commands (ctrl+o to expand)
+
+⏺ Der MCP-Server hat jetzt ein fünftes Werkzeug list_documents; Typecheck, Lint
+  und alle 83 Tests in apps/mcp laufen durch. Committet habe ich nichts.
+
+  Was das Werkzeug macht
+  - Eingabe: collection (ID oder Name), optional pathPrefix, limit (1–200,
+    Standard 50) und offset.
+  - Ausgabe: je Dokument nur Metadaten (documentId, Dateiname, Pfad, Sprache,
+    Titel, Status, Chunk-Anzahl, Größe, Fehlermeldung bei failed), dazu total
+    und nextOffset zum Weiterblättern.
+  - Ausgabelimit: Passt eine Seite nicht in MCP_MAX_OUTPUT_CHARS, wird sie auf
+    ganze Einträge gekürzt, und nextOffset zeigt auf den ersten ausgelassenen
+    Eintrag.
+  - Nicht vertrauenswürdige Inhalte: Dateinamen, Pfade und Titel stehen wie bei
+    den anderen Werkzeugen in einem Untrusted-Block.
+
+  Es nutzt den vorhandenen Endpunkt GET /api/collections/:id/documents; an der
+  API war keine Änderung nötig.
+
+  Tests
+  - test/server.test.ts: acht neue Fälle für list_documents (Auflösung per Name,
+    Filter und Paging, leere Ergebnisse, Kürzung, Marker-Imitation im
+    Dateinamen, unbekannte Collection, ungültige Eingaben, API-Fehler); der
+    tools/list-Test erwartet jetzt fünf Werkzeuge.
+  - test/raglab-client.test.ts: URL-Aufbau mit kodierter ID und Query.
+  - test/stdio.test.ts: Aufruf über den echten stdio-Prozess.
+
+  Weitere Änderungen
+  - In der Werkzeugliste steht list_documents direkt nach list_collections, und
+    die Server-Instructions erwähnen es.
+  - Nachgezogen habe ich README.md, apps/mcp/README.md, docs/architecture.md und
+    docs/security.md.
+  - Unverändert sind ADR 0003 (dort steht weiter „Vier lesende Tools“) und das
+    Video-Drehbuch – sagen Sie Bescheid, wenn ich die auch anpassen soll.
+
+  Die Implementierung liegt in apps/mcp/src/tools/list-documents.ts, die
+  Client-Methode listDocuments in apps/mcp/src/raglab-client.ts.
+
+✻ Churned for 2m 30s · done 3:22 PM
+
+※ recap: Der MCP-Server hat jetzt das fünfte Werkzeug list_documents samt Tests und Doku; Typecheck, Lint und alle 83 Tests laufen durch. Nächster Schritt: Änderungen prüfen und sagen, ob ich committen soll. (disable recaps in /config)

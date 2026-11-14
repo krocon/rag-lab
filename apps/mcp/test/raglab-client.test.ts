@@ -99,6 +99,17 @@ describe('RaglabClient (JSON endpoints)', () => {
     ]);
   });
 
+  it('lists documents with an encoded collection ID and query', async () => {
+    const { client, requests } = setup(() => json(200, { items: [], total: 0 }));
+    await expect(client.listDocuments(COLLECTION_ID)).resolves.toEqual({ items: [], total: 0 });
+    await client.listDocuments('../x', { pathPrefix: 'docs/a&b #1/', limit: 20, offset: 40 });
+    expect(requests.map((request) => request.url)).toEqual([
+      `http://127.0.0.1:3000/api/collections/${COLLECTION_ID}/documents`,
+      'http://127.0.0.1:3000/api/collections/..%2Fx/documents?pathPrefix=docs%2Fa%26b+%231%2F&limit=20&offset=40',
+    ]);
+    expect(requests[1]?.init.method).toBe('GET');
+  });
+
   it('keeps a base path of the API URL', async () => {
     const requests: string[] = [];
     const client = createRaglabClient({

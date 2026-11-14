@@ -11,12 +11,13 @@ MCP client ──stdio (JSON-RPC)──▶ apps/mcp ──HTTP──▶ apps/api
 
 ## Tools
 
-| Tool               | Input                                                 | Result                                                                                                                          |
-| ------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `list_collections` | –                                                     | ID, name, description, document/ready/chunk counts, embedding provider/model/dimensions                                         |
-| `search_knowledge` | `collection` (ID or name), `query`, `topK?` (1–20)    | hits with `rank`, `score` (1 − distance), `distance` (cosine), file name, heading path, `documentId`, `chunkId`, text           |
-| `get_document`     | `documentId`, `chunkId?`, `maxChars?`                 | metadata and full text (shortened to `maxChars`), or one chunk with up to 1 000 characters of context on each side              |
-| `ask_knowledge`    | `collection` (ID or name), `question`, `topK?` (1–20) | answer of RAGLab's chat (`POST /api/chat`), numbered sources, `citedSources`, `unknownCitations`, `answerStatus` (`no_sources`) |
+| Tool               | Input                                                                             | Result                                                                                                                          |
+| ------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `list_collections` | –                                                                                 | ID, name, description, document/ready/chunk counts, embedding provider/model/dimensions                                         |
+| `list_documents`   | `collection` (ID or name), `pathPrefix?`, `limit?` (1–200, default 50), `offset?` | documents (metadata only) with `documentId`, file name, path, language, title, status, chunk count, size; `total`, `nextOffset` |
+| `search_knowledge` | `collection` (ID or name), `query`, `topK?` (1–20)                                | hits with `rank`, `score` (1 − distance), `distance` (cosine), file name, heading path, `documentId`, `chunkId`, text           |
+| `get_document`     | `documentId`, `chunkId?`, `maxChars?`                                             | metadata and full text (shortened to `maxChars`), or one chunk with up to 1 000 characters of context on each side              |
+| `ask_knowledge`    | `collection` (ID or name), `question`, `topK?` (1–20)                             | answer of RAGLab's chat (`POST /api/chat`), numbered sources, `citedSources`, `unknownCitations`, `answerStatus` (`no_sources`) |
 
 Every tool returns readable text (`content`) **and** `structuredContent` that matches its
 `outputSchema`. Collection names are matched case-insensitively and exactly; an unknown or

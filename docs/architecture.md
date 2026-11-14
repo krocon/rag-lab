@@ -31,7 +31,7 @@ Datenmodell: [data-model.md](data-model.md)
 | `apps/api`                     | REST + SSE, Validierung, Ingestion, Chunking, Embedding-Aufrufe, Retrieval, Prompt-Aufbau | Keine UI, keine Modellverwaltung (Modelle werden nicht heruntergeladen)  |
 | PostgreSQL + pgvector          | Single Source of Truth für Metadaten, Text, Chunks und Vektoren                           | –                                                                        |
 | Ollama (oder anderer Provider) | Embeddings und Text-Generierung                                                           | Kennt keine RAGLab-Daten außer dem übergebenen Prompt                    |
-| `apps/mcp`                     | MCP-Server (stdio): vier lesende Tools für externe KI-Clients, Aufrufe nur über die API   | Kein DB-/Provider-Zugriff, keine schreibenden Tools, kein HTTP-Transport |
+| `apps/mcp`                     | MCP-Server (stdio): fünf lesende Tools für externe KI-Clients, Aufrufe nur über die API   | Kein DB-/Provider-Zugriff, keine schreibenden Tools, kein HTTP-Transport |
 | `packages/shared`              | Nur TypeScript-Typen (API-Verträge) für API, Web und MCP                                  | Kein Laufzeitcode                                                        |
 
 **Systemgrenzen und Vertrauen:** Vertrauenswürdig sind Code, Konfiguration und Systemprompt.
@@ -928,6 +928,7 @@ src/collections.ts     Collection-Auflösung (ID oder Name), src/format.ts: Mark
 | Tool               | API-Aufrufe                                                        | Ergebnis (`content` + `structuredContent`)                                                      |
 | ------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | `list_collections` | `GET /api/collections`                                             | ID, Name, Beschreibung, Dokument-/Ready-/Chunk-Anzahl, Embedding-Provider/-Modell               |
+| `list_documents`   | `GET /api/collections`, `GET /api/collections/:id/documents`       | Dokument-Metadaten (ID, Datei, Pfad, Sprache, Titel, Status, Chunks), `total`, `nextOffset`     |
 | `search_knowledge` | `GET /api/collections`, `POST /api/retrieval/search`               | Treffer: `rank`, `score`, `distance`, Datei, Überschriftenpfad, IDs, Text; `emptyReason`        |
 | `get_document`     | `GET /api/documents/:id`, `/content`, bei `chunkId` auch `/chunks` | Metadaten + Volltext (gekürzt auf `maxChars`) bzw. Chunk mit Kontext (≤ 1 000 Zeichen je Seite) |
 | `ask_knowledge`    | `GET /api/collections`, `POST /api/chat` (SSE bis `done`/`error`)  | Antwort, Quellen `[n]`, `citedSources`, `unknownCitations`, `answerStatus`, Modell              |
@@ -1312,6 +1313,7 @@ Bedrohungsmodell, alle Maßnahmen, Betriebsempfehlungen und Restrisiken stehen i
 | Browser-E2E-Tests (Playwright)                                                                          | ⏳ Empfehlung mit Aufwandsschätzung (evaluation.md §8)         |
 | Authentifizierung/Benutzer                                                                              | ⏳ nicht im MVP (Reverse Proxy mit Auth, security.md §7)       |
 | MCP-Server `apps/mcp` (stdio): `list_collections`, `search_knowledge`, `get_document`, `ask_knowledge`  | ✅ implementiert, getestet (In-Memory + stdio, 014)            |
+| MCP: Tool `list_documents` (Dokumentliste einer Collection, Präfixfilter, Paging)                       | ✅ implementiert, getestet (In-Memory + stdio)                 |
 | MCP: Untrusted-Marker, `MCP_MAX_OUTPUT_CHARS`, Fehler als `isError`, Logs nur stderr                    | ✅ implementiert, getestet (014)                               |
 | MCP: manueller stdio-Smoke-Test gegen die echte API                                                     | ✅ ausgeführt (ohne Ollama-Modell: leere Suche, `no_sources`)  |
 | MCP: Streamable-HTTP-Transport, Resources/Prompts, schreibende Tools                                    | ⏳ geplant (ADR 0003, Ausblick)                                |

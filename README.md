@@ -62,7 +62,7 @@ answers differ.</sub>
 
 **Integration and operations**
 
-- MCP server (stdio) with four read-only tools for Claude Desktop, Claude Code and other MCP
+- MCP server (stdio) with five read-only tools for Claude Desktop, Claude Code and other MCP
   clients.
 - Retrieval evaluation (Recall@K, Precision@K, Hit-Rate@K, MRR) on a bundled, self-written dataset.
 - Hardening: strict validation, security headers, CORS/Origin/Host checks, rate limits, upload
@@ -474,11 +474,12 @@ real model; a reference run with a real embedding model is still open. Dataset f
 ## MCP server
 
 `apps/mcp` lets MCP clients such as Claude Desktop or Claude Code use your knowledge bases. It runs
-locally over stdio, talks only to the RAGLab API and offers four **read-only** tools:
+locally over stdio, talks only to the RAGLab API and offers five **read-only** tools:
 
 | Tool               | What it does                                                                                  |
 | ------------------ | --------------------------------------------------------------------------------------------- |
 | `list_collections` | Lists collections with ID, name, description, document/chunk counts and embedding model       |
+| `list_documents`   | Lists the documents of a collection (ID or name): path, status, chunk count; paged            |
 | `search_knowledge` | Semantic search in a collection (ID or name): rank, score, distance, file, heading path, text |
 | `get_document`     | Metadata and text of a document, or one chunk with surrounding context (`maxChars` limit)     |
 | `ask_knowledge`    | Grounded answer from RAGLab's chat with sources, citations and `answerStatus`                 |

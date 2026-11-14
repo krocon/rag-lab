@@ -5,7 +5,14 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { chatResult, collection, COLLECTION_ID, searchResponse } from './fakes.js';
+import {
+  chatResult,
+  collection,
+  COLLECTION_ID,
+  document,
+  DOCUMENT_ID,
+  searchResponse,
+} from './fakes.js';
 
 /**
  * End-to-end over stdio: the real entry point (`src/main.ts` via tsx) as a child process, a fake
@@ -44,6 +51,11 @@ beforeAll(async () => {
       };
       if (request.method === 'GET' && request.url === '/api/collections') {
         json(200, { items: [collection()] });
+      } else if (
+        request.method === 'GET' &&
+        request.url === `/api/collections/${COLLECTION_ID}/documents?limit=50&offset=0`
+      ) {
+        json(200, { items: [document()], total: 1 });
       } else if (request.method === 'POST' && request.url === '/api/retrieval/search') {
         json(200, searchResponse());
       } else if (request.method === 'POST' && request.url === '/api/chat') {
@@ -92,11 +104,21 @@ describe('stdio server (child process)', () => {
     const { client, protocolErrors, stderr } = await startServer({ RAGLAB_API_URL: apiUrl });
     try {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(4);
+      expect(tools).toHaveLength(5);
 
       const list = (await client.callTool({ name: 'list_collections' })) as CallToolResult;
       expect(list.isError).toBeFalsy();
       expect(list.structuredContent).toMatchObject({ collections: [{ id: COLLECTION_ID }] });
+
+      const documents = (await client.callTool({
+        name: 'list_documents',
+        arguments: { collection: 'Handbook' },
+      })) as CallToolResult;
+      expect(documents.isError).toBeFalsy();
+      expect(documents.structuredContent).toMatchObject({
+        total: 1,
+        documents: [{ id: DOCUMENT_ID, filename: 'deploy.md' }],
+      });
 
       const search = (await client.callTool({
         name: 'search_knowledge',

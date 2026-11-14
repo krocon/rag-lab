@@ -9,6 +9,8 @@ import type {
   DocumentChunksResponse,
   DocumentContentResponse,
   DocumentDto,
+  DocumentListQuery,
+  DocumentListResponse,
   RetrievalSearchRequest,
   RetrievalSearchResponse,
 } from '@raglab/shared';
@@ -33,6 +35,11 @@ export interface ChatResult {
 export interface RaglabClient {
   listCollections(signal?: AbortSignal): Promise<CollectionDto[]>;
   search(request: RetrievalSearchRequest, signal?: AbortSignal): Promise<RetrievalSearchResponse>;
+  listDocuments(
+    collectionId: string,
+    query?: DocumentListQuery,
+    signal?: AbortSignal,
+  ): Promise<DocumentListResponse>;
   getDocument(documentId: string, signal?: AbortSignal): Promise<DocumentDto>;
   getDocumentContent(documentId: string, signal?: AbortSignal): Promise<DocumentContentResponse>;
   getDocumentChunks(documentId: string, signal?: AbortSignal): Promise<DocumentChunksResponse>;
@@ -133,6 +140,25 @@ export function createRaglabClient(options: RaglabClientOptions): RaglabClient {
     },
     search(request, signal) {
       return requestJson('POST', '/api/retrieval/search', request, signal);
+    },
+    listDocuments(collectionId, query = {}, signal) {
+      const params = new URLSearchParams();
+      if (query.pathPrefix !== undefined) {
+        params.set('pathPrefix', query.pathPrefix);
+      }
+      if (query.limit !== undefined) {
+        params.set('limit', String(query.limit));
+      }
+      if (query.offset !== undefined) {
+        params.set('offset', String(query.offset));
+      }
+      const search = params.size > 0 ? `?${params.toString()}` : '';
+      return requestJson(
+        'GET',
+        `/api/collections/${id(collectionId)}/documents${search}`,
+        undefined,
+        signal,
+      );
     },
     getDocument(documentId, signal) {
       return requestJson('GET', `/api/documents/${id(documentId)}`, undefined, signal);
