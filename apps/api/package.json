@@ -20,9 +20,9 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@fastify/cors": "^11.4.1",
+    "@fastify/cors": "^11.4.2",
     "@fastify/helmet": "^13.2.0",
-    "@fastify/multipart": "^10.1.7",
+    "@fastify/multipart": "^10.1.8",
     "@fastify/rate-limit": "^11.2.2",
     "@fastify/swagger": "^9.9.3",
     "@fastify/swagger-ui": "^6.1.3",
