@@ -23,7 +23,10 @@ import {
 
 export interface DocumentsService {
   /** Ordered by path; filtered by path prefix and paged (`limit` absent = all). */
-  listByCollection(collectionId: string, filter?: DocumentListFilter): Promise<DocumentListResponse>;
+  listByCollection(
+    collectionId: string,
+    filter?: DocumentListFilter,
+  ): Promise<DocumentListResponse>;
   get(id: string): Promise<DocumentDto>;
   /** The normalised text of a document (basis for the source view). */
   getContent(id: string): Promise<DocumentContentResponse>;
@@ -189,10 +192,7 @@ export function createDocumentsService({
             { filename: document.filename, duplicateOfFilename: sameInRequest.filename },
           );
         }
-        if (
-          document.path !== null &&
-          prepared.some((other) => other.path === document.path)
-        ) {
+        if (document.path !== null && prepared.some((other) => other.path === document.path)) {
           throw conflict(
             'DUPLICATE_PATH',
             `The path "${document.path}" occurs more than once in this upload.`,

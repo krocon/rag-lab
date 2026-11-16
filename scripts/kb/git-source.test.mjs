@@ -35,12 +35,20 @@ describe('Git URLs', () => {
       displayUrl: 'https://github.com/o/r',
     });
     assert.equal(parseGitUrl('git@github.com:o/r.git').displayUrl, 'git@github.com:o/r.git');
-    for (const url of ['http://github.com/o/r', 'file:///tmp/repo', 'ext::sh -c touch% /tmp/x', 'ftp://x/y']) {
+    for (const url of [
+      'http://github.com/o/r',
+      'file:///tmp/repo',
+      'ext::sh -c touch% /tmp/x',
+      'ftp://x/y',
+    ]) {
       assert.throws(() => parseGitUrl(url), GitSourceError, url);
     }
     assert.throws(() => parseGitUrl('--upload-pack=touch /tmp/x'), GitSourceError);
     assert.throws(() => parseGitUrl('https://github.com/o/r x'), GitSourceError);
-    assert.equal(parseGitUrl('file:///tmp/repo', { allowFileUrls: true }).cloneUrl, 'file:///tmp/repo');
+    assert.equal(
+      parseGitUrl('file:///tmp/repo', { allowFileUrls: true }).cloneUrl,
+      'file:///tmp/repo',
+    );
   });
 
   it('removes credentials for display and storage, never the SSH user', () => {
@@ -49,7 +57,10 @@ describe('Git URLs', () => {
     assert.equal(parseGitUrl(url).displayUrl, 'https://github.com/o/r.git');
     assert.equal(stripCredentials('https://token@gitlab.com/g/r'), 'https://gitlab.com/g/r');
     assert.equal(stripCredentials('ssh://git:pw@host/r.git'), 'ssh://git@host/r.git');
-    assert.equal(sourceUrlForStorage('https://guiexperttable@github.com/guiexperttable/mono.git'), 'https://github.com/guiexperttable/mono.git');
+    assert.equal(
+      sourceUrlForStorage('https://guiexperttable@github.com/guiexperttable/mono.git'),
+      'https://github.com/guiexperttable/mono.git',
+    );
     assert.equal(sourceUrlForStorage('/local/path/repo'), null);
     assert.equal(sourceUrlForStorage('file:///local/repo'), null);
     assert.equal(
@@ -69,10 +80,22 @@ describe('Git URLs', () => {
 });
 
 const git = (/** @type {string} */ cwd, /** @type {string[]} */ ...args) =>
-  execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', ...args], {
-    cwd,
-    encoding: 'utf8',
-  }).trim();
+  execFileSync(
+    'git',
+    [
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@example.invalid',
+      '-c',
+      'commit.gpgsign=false',
+      ...args,
+    ],
+    {
+      cwd,
+      encoding: 'utf8',
+    },
+  ).trim();
 
 describe('local repositories (no network)', () => {
   /** @type {string} */
@@ -111,7 +134,13 @@ describe('local repositories (no network)', () => {
   it('reads a work tree: tracked and untracked files, commit, branch, remote without credentials', async () => {
     const workTree = await readWorkTree(repo);
     assert.ok(workTree);
-    assert.deepEqual([...workTree.files].sort(), ['.gitignore', 'README.md', 'src/a.ts', 'src/b.ts', 'untracked.md']);
+    assert.deepEqual([...workTree.files].sort(), [
+      '.gitignore',
+      'README.md',
+      'src/a.ts',
+      'src/b.ts',
+      'untracked.md',
+    ]);
     assert.equal(workTree.commit, git(repo, 'rev-parse', 'HEAD'));
     assert.equal(workTree.ref, 'main');
     assert.equal(workTree.url, 'https://github.com/example/repo.git');
@@ -134,7 +163,11 @@ describe('local repositories (no network)', () => {
 
   it('clones a tag and a commit SHA', async () => {
     for (const ref of ['v1', firstCommit]) {
-      const clone = await cloneShallow(pathToFileURL(repo).href, { allowFileUrls: true, tempRoot, ref });
+      const clone = await cloneShallow(pathToFileURL(repo).href, {
+        allowFileUrls: true,
+        tempRoot,
+        ref,
+      });
       try {
         assert.equal(clone.commit, firstCommit, ref);
         assert.ok(!existsSync(join(clone.directory, 'src', 'b.ts')), ref);
@@ -146,7 +179,11 @@ describe('local repositories (no network)', () => {
 
   it('removes the temporary directory when cloning fails', async () => {
     await assert.rejects(
-      cloneShallow(pathToFileURL(repo).href, { allowFileUrls: true, tempRoot, ref: 'does-not-exist' }),
+      cloneShallow(pathToFileURL(repo).href, {
+        allowFileUrls: true,
+        tempRoot,
+        ref: 'does-not-exist',
+      }),
       GitSourceError,
     );
     assert.deepEqual(await readdir(tempRoot), []);

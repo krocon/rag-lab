@@ -10,7 +10,14 @@ import { IndexingError } from '../../src/modules/ingestion/document-indexer.js';
 
 function context(content: string, mimeType = 'text/markdown'): IndexingContext {
   return {
-    document: { id: 'doc-1', collectionId: 'col-1', filename: 'a.md', path: null, mimeType, content },
+    document: {
+      id: 'doc-1',
+      collectionId: 'col-1',
+      filename: 'a.md',
+      path: null,
+      mimeType,
+      content,
+    },
     chunkCount: 0,
   };
 }

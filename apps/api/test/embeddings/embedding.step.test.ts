@@ -73,7 +73,13 @@ async function setup({
   );
   const step = createEmbeddingStep({ provider, chunks, collections, columnDimensions });
   const context: IndexingContext = {
-    document: { ...document, filename: 'a.md', path: null, mimeType: 'text/markdown', content: 'x' },
+    document: {
+      ...document,
+      filename: 'a.md',
+      path: null,
+      mimeType: 'text/markdown',
+      content: 'x',
+    },
     chunkCount,
   };
   return { store, collections, collection, chunks, document, step, context, provider };

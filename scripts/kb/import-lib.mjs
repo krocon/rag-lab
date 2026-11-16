@@ -17,7 +17,13 @@
  */
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { cloneShallow, isGitUrl, readWorkTree, runGit, sourceUrlForStorage } from './git-source.mjs';
+import {
+  cloneShallow,
+  isGitUrl,
+  readWorkTree,
+  runGit,
+  sourceUrlForStorage,
+} from './git-source.mjs';
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINE_LENGTH,
@@ -145,7 +151,10 @@ export function batchFiles(files, { maxFiles, maxRequestBytes }) {
   let current = [];
   let bytes = 0;
   for (const file of files) {
-    if (current.length > 0 && (current.length >= maxFiles || bytes + file.bytes > maxRequestBytes)) {
+    if (
+      current.length > 0 &&
+      (current.length >= maxFiles || bytes + file.bytes > maxRequestBytes)
+    ) {
       batches.push(current);
       current = [];
       bytes = 0;
@@ -197,7 +206,11 @@ export function createApiClient(options) {
       try {
         return await requestOnce(method, path, body);
       } catch (error) {
-        if (!(error instanceof ImportError) || error.status !== 429 || attempt > maxRateLimitRetries) {
+        if (
+          !(error instanceof ImportError) ||
+          error.status !== 429 ||
+          attempt > maxRateLimitRetries
+        ) {
           throw error;
         }
         const waitSeconds = error.retryAfterSeconds ?? 10;
@@ -245,12 +258,15 @@ export function createApiClient(options) {
       const code = data?.error?.code ?? 'HTTP_ERROR';
       const message = data?.error?.message ?? (text.slice(0, 200) || response.statusText);
       const retryAfter = Number(response.headers.get('retry-after'));
-      throw new ImportError(`${method} ${path} failed with ${response.status} ${code}: ${message}`, {
-        status: response.status,
-        code,
-        details: data?.error?.details,
-        retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
-      });
+      throw new ImportError(
+        `${method} ${path} failed with ${response.status} ${code}: ${message}`,
+        {
+          status: response.status,
+          code,
+          details: data?.error?.details,
+          retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+        },
+      );
     }
     return data;
   }
@@ -311,7 +327,9 @@ export async function runImport(options) {
       ...(options.allowFileUrls ? { allowFileUrls: true } : {}),
       git,
     });
-    log(`Cloned ${clone.displayUrl}${clone.ref ? ` (${clone.ref})` : ''} at ${clone.commit.slice(0, 12)}.`);
+    log(
+      `Cloned ${clone.displayUrl}${clone.ref ? ` (${clone.ref})` : ''} at ${clone.commit.slice(0, 12)}.`,
+    );
     try {
       return await importDirectory(options, clone.directory, undefined, {
         kind: 'git',
@@ -449,7 +467,10 @@ async function importDirectory(options, root, candidates, source) {
     log(`Reusing collection "${collection.name}" (${collection.id}).`);
   } else {
     collection = await api.request('POST', '/api/collections', {
-      json: { name, description: `Imported from ${source.url ?? source.label} (pnpm kb:import).`.slice(0, 2000) },
+      json: {
+        name,
+        description: `Imported from ${source.url ?? source.label} (pnpm kb:import).`.slice(0, 2000),
+      },
     });
     created = true;
     log(`Created collection "${collection?.name}" (${collection?.id}).`);
@@ -480,7 +501,9 @@ async function importDirectory(options, root, candidates, source) {
       `${plan.duplicateInCollection.length ? `, ${plan.duplicateInCollection.length} duplicate content` : ''}.`,
   );
   if (!sync && (plan.changed.length > 0 || plan.removed.length > 0)) {
-    log('Changed and removed files are left as they are – run with --sync to replace and delete them.');
+    log(
+      'Changed and removed files are left as they are – run with --sync to replace and delete them.',
+    );
   }
 
   // 4. Sync: delete replaced and removed documents first (summary above), then upload.
@@ -518,12 +541,17 @@ async function importDirectory(options, root, candidates, source) {
   });
 
   // 6. Wait for indexing of every document from this source.
-  const documents = await waitForIndexing(api, documentsPath, new Set(selected.map((f) => f.path)), {
-    timeoutMs: options.timeoutMs ?? 3_600_000,
-    pollIntervalMs: options.pollIntervalMs ?? 2000,
-    sleep,
-    log,
-  });
+  const documents = await waitForIndexing(
+    api,
+    documentsPath,
+    new Set(selected.map((f) => f.path)),
+    {
+      timeoutMs: options.timeoutMs ?? 3_600_000,
+      pollIntervalMs: options.pollIntervalMs ?? 2000,
+      sleep,
+      log,
+    },
+  );
 
   return {
     source,
@@ -580,10 +608,18 @@ async function uploadAll(api, documentsPath, files, limits, log) {
           await api.request('POST', documentsPath, { form: formFor([file]) });
           uploaded.push(file.path);
         } catch (single) {
-          if (!(single instanceof ImportError) || single.status === undefined || single.status >= 500) {
+          if (
+            !(single instanceof ImportError) ||
+            single.status === undefined ||
+            single.status >= 500
+          ) {
             throw single;
           }
-          rejected.push({ path: file.path, code: single.code ?? 'HTTP_ERROR', message: single.message });
+          rejected.push({
+            path: file.path,
+            code: single.code ?? 'HTTP_ERROR',
+            message: single.message,
+          });
           log(`Rejected ${file.path}: ${single.code}`);
         }
       }
@@ -604,13 +640,20 @@ async function uploadAll(api, documentsPath, files, limits, log) {
  * @param {{ timeoutMs: number, pollIntervalMs: number, sleep: (ms: number) => Promise<void>, log: (line: string) => void }} options
  * @returns {Promise<RemoteDocument[]>}
  */
-async function waitForIndexing(api, documentsPath, paths, { timeoutMs, pollIntervalMs, sleep, log }) {
+async function waitForIndexing(
+  api,
+  documentsPath,
+  paths,
+  { timeoutMs, pollIntervalMs, sleep, log },
+) {
   const deadline = Date.now() + timeoutMs;
   let lastReport = '';
   for (;;) {
     /** @type {RemoteDocument[]} */
     const items = (await api.request('GET', documentsPath))?.items ?? [];
-    const documents = items.filter((document) => document.path !== null && paths.has(document.path));
+    const documents = items.filter(
+      (document) => document.path !== null && paths.has(document.path),
+    );
     const busy = documents.filter((d) => d.status === 'pending' || d.status === 'processing');
     if (busy.length === 0) return documents;
     if (Date.now() >= deadline) {

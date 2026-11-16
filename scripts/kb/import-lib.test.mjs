@@ -10,7 +10,12 @@ import { ImportError, batchFiles, planImport, runImport } from './import-lib.mjs
 import { contentHash } from './select-lib.mjs';
 
 /** @param {string} path @param {string} content */
-const local = (path, content) => ({ path, content, bytes: content.length, hash: contentHash(content) });
+const local = (path, content) => ({
+  path,
+  content,
+  bytes: content.length,
+  hash: contentHash(content),
+});
 /** @param {string | null} path @param {string} content @param {string} [status] */
 const remote = (path, content, status = 'ready') => ({
   id: `id-${path ?? content}`,
@@ -35,19 +40,43 @@ describe('planImport', () => {
 
   it('without sync: uploads new files only, deletes and replaces nothing', () => {
     const plan = planImport([...files, local('e.ts', 'E')], documents);
-    assert.deepEqual(plan.upload.map((f) => f.path), ['c.ts']);
-    assert.deepEqual(plan.unchanged.map((f) => f.path), ['a.ts', 'e.ts']);
-    assert.deepEqual(plan.changed.map((c) => c.file.path), ['b.ts']);
-    assert.deepEqual(plan.removed.map((d) => d.path), ['d-old.ts', 'gone.ts']);
+    assert.deepEqual(
+      plan.upload.map((f) => f.path),
+      ['c.ts'],
+    );
+    assert.deepEqual(
+      plan.unchanged.map((f) => f.path),
+      ['a.ts', 'e.ts'],
+    );
+    assert.deepEqual(
+      plan.changed.map((c) => c.file.path),
+      ['b.ts'],
+    );
+    assert.deepEqual(
+      plan.removed.map((d) => d.path),
+      ['d-old.ts', 'gone.ts'],
+    );
     // `d.ts` has the content of `d-old.ts`, which stays without --sync.
-    assert.deepEqual(plan.duplicateInCollection.map((d) => d.file.path), ['d.ts']);
-    assert.deepEqual(plan.reindex.map((d) => d.path), ['e.ts']);
+    assert.deepEqual(
+      plan.duplicateInCollection.map((d) => d.file.path),
+      ['d.ts'],
+    );
+    assert.deepEqual(
+      plan.reindex.map((d) => d.path),
+      ['e.ts'],
+    );
   });
 
   it('with sync: also uploads changed files and content of deleted documents', () => {
     const plan = planImport(files, documents, { sync: true });
-    assert.deepEqual(plan.upload.map((f) => f.path), ['b.ts', 'c.ts', 'd.ts']);
-    assert.deepEqual(plan.removed.map((d) => d.path), ['d-old.ts', 'e.ts', 'gone.ts']);
+    assert.deepEqual(
+      plan.upload.map((f) => f.path),
+      ['b.ts', 'c.ts', 'd.ts'],
+    );
+    assert.deepEqual(
+      plan.removed.map((d) => d.path),
+      ['d-old.ts', 'e.ts', 'gone.ts'],
+    );
     assert.deepEqual(plan.duplicateInCollection, []);
   });
 
@@ -61,7 +90,9 @@ describe('batchFiles', () => {
   it('respects the file count and the request size', () => {
     const files = [5, 5, 5, 20, 1, 1, 1].map((bytes, index) => ({ bytes, index }));
     assert.deepEqual(
-      batchFiles(files, { maxFiles: 3, maxRequestBytes: 20 }).map((batch) => batch.map((f) => f.index)),
+      batchFiles(files, { maxFiles: 3, maxRequestBytes: 20 }).map((batch) =>
+        batch.map((f) => f.index),
+      ),
       [[0, 1, 2], [3], [4, 5, 6]],
     );
     assert.deepEqual(batchFiles([], { maxFiles: 3, maxRequestBytes: 20 }), []);
@@ -72,7 +103,11 @@ describe('batchFiles', () => {
  * A fake RAGLab API behind a mocked `fetch`: collections, documents with paths, upload limits,
  * rate limiting and per-file rejection. Documents become `ready` on the next list request.
  */
-function fakeApi({ maxFiles = 2, rateLimitFirstUpload = false, rejectPaths = /** @type {string[]} */ ([]) } = {}) {
+function fakeApi({
+  maxFiles = 2,
+  rateLimitFirstUpload = false,
+  rejectPaths = /** @type {string[]} */ ([]),
+} = {}) {
   /** @type {string[]} */
   const calls = [];
   /** @type {any[]} */
@@ -125,12 +160,17 @@ function fakeApi({ maxFiles = 2, rateLimitFirstUpload = false, rejectPaths = /**
     if (docs && method === 'POST') {
       if (!rateLimited) {
         rateLimited = true;
-        return reply(429, { error: { code: 'RATE_LIMITED', message: 'slow down' } }, { 'retry-after': '1' });
+        return reply(
+          429,
+          { error: { code: 'RATE_LIMITED', message: 'slow down' } },
+          { 'retry-after': '1' },
+        );
       }
       const form = /** @type {FormData} */ (init?.body);
       const paths = form.getAll('path').map(String);
       const files = /** @type {File[]} */ (form.getAll('file'));
-      if (files.length > maxFiles) return reply(413, { error: { code: 'TOO_MANY_FILES', message: 'x' } });
+      if (files.length > maxFiles)
+        return reply(413, { error: { code: 'TOO_MANY_FILES', message: 'x' } });
       const rejected = paths.find((p) => rejectPaths.includes(p));
       if (rejected) {
         return reply(400, { error: { code: 'INVALID_ENCODING', message: `"${rejected}" is bad` } });
@@ -201,9 +241,18 @@ describe('runImport', () => {
 
   it('dry run: selection and summary without any API call', async () => {
     const api = fakeApi();
-    const result = await runImport({ source: root, name: 'X', dryRun: true, fetch: api.fetch, ...quiet });
+    const result = await runImport({
+      source: root,
+      name: 'X',
+      dryRun: true,
+      fetch: api.fetch,
+      ...quiet,
+    });
     assert.equal(api.calls.length, 0);
-    assert.deepEqual(result.selected.map((f) => f.path), ['README.md', 'src/a.ts', 'src/b.ts']);
+    assert.deepEqual(
+      result.selected.map((f) => f.path),
+      ['README.md', 'src/a.ts', 'src/b.ts'],
+    );
     assert.ok(result.skipped.some((f) => f.path === '.env' && f.reason === 'secret'));
     assert.equal(result.source.kind, 'directory');
   });
@@ -214,7 +263,10 @@ describe('runImport', () => {
     assert.deepEqual(first.uploaded, ['README.md', 'src/a.ts', 'src/b.ts']);
     assert.equal(first.created, true);
     // Two batches (MAX_UPLOAD_FILES = 2), the first one retried after 429.
-    assert.equal(api.calls.filter((call) => call.startsWith('POST /api/collections/c1/documents')).length, 3);
+    assert.equal(
+      api.calls.filter((call) => call.startsWith('POST /api/collections/c1/documents')).length,
+      3,
+    );
     assert.deepEqual(api.source, { kind: 'directory', url: null, ref: null, commit: null });
     assert.ok(first.documents?.every((d) => d.status === 'ready'));
 
@@ -230,27 +282,42 @@ describe('runImport', () => {
     assert.deepEqual(withoutSync.deleted, []);
     assert.equal(api.documents.length, 3);
 
-    const synced = await runImport({ source: root, name: 'Code', sync: true, fetch: api.fetch, ...quiet });
+    const synced = await runImport({
+      source: root,
+      name: 'Code',
+      sync: true,
+      fetch: api.fetch,
+      ...quiet,
+    });
     assert.deepEqual(synced.replaced, ['src/a.ts']);
     assert.deepEqual(synced.deleted, ['src/b.ts']);
     assert.deepEqual(synced.uploaded, ['src/a.ts']);
-    assert.deepEqual(
-      api.documents.map((d) => d.path).sort(),
-      ['README.md', 'src/a.ts'],
+    assert.deepEqual(api.documents.map((d) => d.path).sort(), ['README.md', 'src/a.ts']);
+    assert.equal(
+      api.documents.find((d) => d.path === 'src/a.ts')?.contentSha256,
+      contentHash('export const a = 42;\n'),
     );
-    assert.equal(api.documents.find((d) => d.path === 'src/a.ts')?.contentSha256, contentHash('export const a = 42;\n'));
   });
 
   it('isolates a rejected file: the rest of its batch is uploaded', async () => {
     const api = fakeApi({ maxFiles: 5, rejectPaths: ['src/a.ts'] });
     const result = await runImport({ source: root, name: 'Code', fetch: api.fetch, ...quiet });
     assert.deepEqual(result.uploaded, ['README.md', 'src/b.ts']);
-    assert.deepEqual(result.rejected?.map((r) => [r.path, r.code]), [['src/a.ts', 'INVALID_ENCODING']]);
+    assert.deepEqual(
+      result.rejected?.map((r) => [r.path, r.code]),
+      [['src/a.ts', 'INVALID_ENCODING']],
+    );
   });
 
   it('rejects --ref for directories and unknown sources', async () => {
-    await assert.rejects(runImport({ source: root, name: 'X', ref: 'main', dryRun: true }), ImportError);
-    await assert.rejects(runImport({ source: join(root, 'missing'), name: 'X', dryRun: true }), ImportError);
+    await assert.rejects(
+      runImport({ source: root, name: 'X', ref: 'main', dryRun: true }),
+      ImportError,
+    );
+    await assert.rejects(
+      runImport({ source: join(root, 'missing'), name: 'X', dryRun: true }),
+      ImportError,
+    );
   });
 
   it('reports an unreachable API clearly', async () => {
@@ -271,7 +338,19 @@ describe('runImport from a Git URL (local file:// repository, tests only)', () =
   before(async () => {
     repo = await mkdtemp(join(tmpdir(), 'raglab-import-repo-'));
     const git = (/** @type {string[]} */ ...args) =>
-      execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd: repo });
+      execFileSync(
+        'git',
+        [
+          '-c',
+          'user.name=T',
+          '-c',
+          'user.email=t@example.invalid',
+          '-c',
+          'commit.gpgsign=false',
+          ...args,
+        ],
+        { cwd: repo },
+      );
     git('init', '--quiet', '--initial-branch=main');
     await mkdir(join(repo, 'src'));
     await writeFile(join(repo, 'src', 'tree.ts'), 'export class Tree {}\n');
@@ -297,6 +376,11 @@ describe('runImport from a Git URL (local file:// repository, tests only)', () =
     assert.deepEqual(result.uploaded, ['README.md', 'src/tree.ts']);
     assert.equal(result.source.kind, 'git');
     assert.match(String(result.source.commit), /^[0-9a-f]{40}$/);
-    assert.deepEqual(api.source, { kind: 'git', url: null, ref: null, commit: result.source.commit });
+    assert.deepEqual(api.source, {
+      kind: 'git',
+      url: null,
+      ref: null,
+      commit: result.source.commit,
+    });
   });
 });

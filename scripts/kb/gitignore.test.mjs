@@ -46,7 +46,15 @@ describe('IgnoreMatcher', () => {
   });
 
   it('supports **, ?, character classes and negation (last rule wins)', () => {
-    const m = matcher(['**/fixtures/**', 'a/**/z.ts', 'file?.md', '[abc].ts', '[!x]y.ts', '*.md', '!keep.md']);
+    const m = matcher([
+      '**/fixtures/**',
+      'a/**/z.ts',
+      'file?.md',
+      '[abc].ts',
+      '[!x]y.ts',
+      '*.md',
+      '!keep.md',
+    ]);
     assert.ok(m.ignores('fixtures/a.ts'));
     assert.ok(m.ignores('x/fixtures/y/z.ts'));
     assert.ok(m.ignores('a/z.ts'));

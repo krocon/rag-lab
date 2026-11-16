@@ -173,7 +173,9 @@ describe('renderSource – source code (017)', () => {
   it('renders path, line range, language and symbol, and fences the code (snapshot)', () => {
     const block = renderSource(1, code());
     expect(block).toMatchSnapshot();
-    expect(block).toContain('path="packages/table/src/tree.ts" lines="10-42" language="typescript"');
+    expect(block).toContain(
+      'path="packages/table/src/tree.ts" lines="10-42" language="typescript"',
+    );
     expect(block).toContain('symbol="class TreeFactory"');
     expect(block).not.toContain('section=');
     expect(block).toContain('```typescript\nexport class TreeFactory');

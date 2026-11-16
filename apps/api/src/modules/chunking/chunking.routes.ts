@@ -52,9 +52,18 @@ const chunkSchema = {
       type: 'integer',
       description: 'Leading characters shared with the previous chunk',
     },
-    startLine: { type: ['integer', 'null'], description: '1-based; null for chunks stored before prompt 017' },
-    endLine: { type: ['integer', 'null'], description: '1-based; null for chunks stored before prompt 017' },
-    symbol: { type: ['string', 'null'], description: 'Enclosing top-level declaration(s) of source code' },
+    startLine: {
+      type: ['integer', 'null'],
+      description: '1-based; null for chunks stored before prompt 017',
+    },
+    endLine: {
+      type: ['integer', 'null'],
+      description: '1-based; null for chunks stored before prompt 017',
+    },
+    symbol: {
+      type: ['string', 'null'],
+      description: 'Enclosing top-level declaration(s) of source code',
+    },
     hasEmbedding: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
   },

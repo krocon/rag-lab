@@ -109,11 +109,14 @@ async function main() {
     console.log(HELP);
     return 0;
   }
-  if (!values.source) throw new ImportError('--source is required (a directory or a Git URL). See --help.');
+  if (!values.source)
+    throw new ImportError('--source is required (a directory or a Git URL). See --help.');
   if (!values.name && !values['dry-run']) throw new ImportError('--name is required. See --help.');
   const timeoutSeconds = Number(values.timeout);
   if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
-    throw new ImportError(`--timeout must be a positive number of seconds, got "${values.timeout}"`);
+    throw new ImportError(
+      `--timeout must be a positive number of seconds, got "${values.timeout}"`,
+    );
   }
   const maxBytes = values['max-bytes'] === undefined ? undefined : Number(values['max-bytes']);
   if (maxBytes !== undefined && (!Number.isInteger(maxBytes) || maxBytes <= 0)) {
@@ -167,10 +170,14 @@ async function main() {
       `${plan && !values.sync && plan.changed.length + plan.removed.length > 0 ? ` (${plan.changed.length} changed and ${plan.removed.length} removed files not synced – use --sync)` : ''}.`,
   );
   if (failed.length > 0 || rejected.length > 0) {
-    console.error('Some files were not indexed – see above. Fix the cause and run the command again.');
+    console.error(
+      'Some files were not indexed – see above. Fix the cause and run the command again.',
+    );
     return 1;
   }
-  console.log(`Open the web app → Chat or Retrieval Playground and pick "${result.collection?.name}".`);
+  console.log(
+    `Open the web app → Chat or Retrieval Playground and pick "${result.collection?.name}".`,
+  );
   return 0;
 }
 

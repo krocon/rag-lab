@@ -57,7 +57,9 @@ export function parseGitUrl(value, options = {}) {
   }
   // eslint-disable-next-line no-control-regex -- rejecting control characters is the point here
   if (/[\u0000- \u007F]/.test(url)) {
-    throw new GitSourceError('Invalid Git URL: it must not contain whitespace or control characters.');
+    throw new GitSourceError(
+      'Invalid Git URL: it must not contain whitespace or control characters.',
+    );
   }
   if (SCP_LIKE.test(url)) {
     return { cloneUrl: url, displayUrl: url };
@@ -155,12 +157,18 @@ export const runGit = (args, options = {}) =>
 
 /** Options that keep repository content from running anything during clone and checkout. */
 const SAFE_CONFIG = [
-  '-c', 'core.hooksPath=/dev/null',
-  '-c', 'init.templateDir=',
-  '-c', 'protocol.ext.allow=never',
-  '-c', 'submodule.recurse=false',
-  '-c', 'core.fsmonitor=false',
-  '-c', 'advice.detachedHead=false',
+  '-c',
+  'core.hooksPath=/dev/null',
+  '-c',
+  'init.templateDir=',
+  '-c',
+  'protocol.ext.allow=never',
+  '-c',
+  'submodule.recurse=false',
+  '-c',
+  'core.fsmonitor=false',
+  '-c',
+  'advice.detachedHead=false',
 ];
 
 /**
@@ -202,7 +210,10 @@ export async function cloneShallow(url, options = {}) {
       ],
       { cwd: directory, env },
     );
-    await git([...config, 'checkout', '--quiet', '--detach', 'FETCH_HEAD'], { cwd: directory, env });
+    await git([...config, 'checkout', '--quiet', '--detach', 'FETCH_HEAD'], {
+      cwd: directory,
+      env,
+    });
     const commit = (await git(['rev-parse', 'HEAD'], { cwd: directory })).trim();
     return { directory: await realpath(directory), commit, ref: ref ?? null, displayUrl, cleanup };
   } catch (error) {

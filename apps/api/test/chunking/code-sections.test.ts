@@ -81,11 +81,14 @@ describe('splitCodeSections', () => {
     const symbols = (text: string, language: string) =>
       sections(text, language).map((section) => section.symbol);
     expect(
-      symbols('import os\n\n@dataclass\nclass Row:\n    pass\n\ndef build():\n    pass\n', 'python'),
+      symbols(
+        'import os\n\n@dataclass\nclass Row:\n    pass\n\ndef build():\n    pass\n',
+        'python',
+      ),
     ).toEqual([null, 'class Row', 'def build']);
-    expect(symbols('package x\n\ntype Row struct{}\n\nfunc (r *Row) Name() string {}\n', 'go')).toEqual(
-      [null, 'type Row', 'func Name'],
-    );
+    expect(
+      symbols('package x\n\ntype Row struct{}\n\nfunc (r *Row) Name() string {}\n', 'go'),
+    ).toEqual([null, 'type Row', 'func Name']);
     expect(
       symbols('use std::fmt;\n\npub struct Row;\n\nimpl Row {}\n\npub fn build() {}\n', 'rust'),
     ).toEqual([null, 'struct Row', 'impl Row', 'fn build']);
@@ -142,7 +145,9 @@ describe('splitCodeSections', () => {
   });
 
   it('returns one section without symbol for JSON and unknown languages', () => {
-    expect(sections('{\n  "a": 1\n}\n', 'json')).toEqual([{ symbol: null, text: '{\n  "a": 1\n}\n' }]);
+    expect(sections('{\n  "a": 1\n}\n', 'json')).toEqual([
+      { symbol: null, text: '{\n  "a": 1\n}\n' },
+    ]);
     expect(splitCodeSections('class A {}\n', undefined)).toHaveLength(1);
     expect(splitCodeSections('', 'typescript')).toEqual([{ start: 0, end: 0, symbol: null }]);
   });

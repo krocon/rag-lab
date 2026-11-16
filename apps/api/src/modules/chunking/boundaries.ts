@@ -139,7 +139,11 @@ export interface CutOptions {
 /** Level of the boundary at `position` for source code (see {@link CutOptions.code}). */
 export function codeBoundaryLevel(text: string, position: number): BoundaryLevel {
   const breaks = lineBreaksAhead(text, position);
-  return breaks >= 2 ? BoundaryLevel.Paragraph : breaks === 1 ? BoundaryLevel.Line : BoundaryLevel.Word;
+  return breaks >= 2
+    ? BoundaryLevel.Paragraph
+    : breaks === 1
+      ? BoundaryLevel.Line
+      : BoundaryLevel.Word;
 }
 
 const LEVELS_COARSE_TO_FINE = [

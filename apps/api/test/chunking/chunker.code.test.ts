@@ -115,9 +115,12 @@ describe('chunkText – source code', () => {
 
 describe('chunkText – Markdown code blocks', () => {
   it('does not cut inside a fenced block that fits into one chunk', () => {
-    const block = ['```ts', 'const tree = createTreeTableModel(rows);', 'tree.toggle(1);', '```'].join(
-      '\n',
-    );
+    const block = [
+      '```ts',
+      'const tree = createTreeTableModel(rows);',
+      'tree.toggle(1);',
+      '```',
+    ].join('\n');
     const text = `Intro sentence one. Intro sentence two.\n\n${block}\n\nAfter the block.`;
     const options: ChunkingOptions = { targetSize: 100, overlap: 0, format: 'markdown' };
     const chunks = chunkText(text, options);

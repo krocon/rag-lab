@@ -27,10 +27,7 @@ const invalidSource = (message: string, field: string) =>
 export function validateSourceUrl(raw: string): string {
   const value = raw.trim();
   if (value.length === 0 || value.length > MAX_SOURCE_URL_LENGTH) {
-    throw invalidSource(
-      `url must be 1–${MAX_SOURCE_URL_LENGTH} characters long.`,
-      'url',
-    );
+    throw invalidSource(`url must be 1–${MAX_SOURCE_URL_LENGTH} characters long.`, 'url');
   }
   // eslint-disable-next-line no-control-regex -- rejecting control characters is the point here
   if (/[\u0000- \u007F-\u009F]/.test(value)) {
@@ -68,12 +65,22 @@ export function toSourceRecord(
 ): CollectionSourceRecord {
   const url = input.url === undefined || input.url === null ? null : validateSourceUrl(input.url);
   const ref = input.ref === undefined || input.ref === null ? null : input.ref.trim();
-  if (ref !== null && (ref.length === 0 || ref.length > MAX_SOURCE_REF_LENGTH || !SAFE_REF.test(ref))) {
-    throw invalidSource('ref must be a branch, tag or commit name without special characters.', 'ref');
+  if (
+    ref !== null &&
+    (ref.length === 0 || ref.length > MAX_SOURCE_REF_LENGTH || !SAFE_REF.test(ref))
+  ) {
+    throw invalidSource(
+      'ref must be a branch, tag or commit name without special characters.',
+      'ref',
+    );
   }
-  const commit = input.commit === undefined || input.commit === null ? null : input.commit.trim().toLowerCase();
+  const commit =
+    input.commit === undefined || input.commit === null ? null : input.commit.trim().toLowerCase();
   if (commit !== null && !COMMIT_SHA.test(commit)) {
-    throw invalidSource('commit must be a full 40- or 64-character hexadecimal commit SHA.', 'commit');
+    throw invalidSource(
+      'commit must be a full 40- or 64-character hexadecimal commit SHA.',
+      'commit',
+    );
   }
   return { kind: input.kind, url, ref, commit, importedAt: importedAt.toISOString() };
 }
