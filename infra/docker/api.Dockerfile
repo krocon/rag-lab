@@ -7,7 +7,7 @@
 #   node dist/db/migrate.js     → applies pending SQL migrations and exits (compose service "migrate")
 
 # Node 26 LTS (ADR 0001), pinned to an exact tag in every FROM line so Dependabot can update it.
-FROM node:26.13.0-trixie-slim AS build
+FROM node:26.13.1-trixie-slim AS build
 # Same pnpm version as "packageManager" in package.json.
 ARG PNPM_VERSION=11.28.9
 ENV CI=true
@@ -27,7 +27,7 @@ RUN --mount=type=cache,id=raglab-pnpm-store,target=/pnpm-store \
   pnpm --filter @raglab/api build \
   && pnpm --filter @raglab/api deploy --prod --legacy --store-dir /pnpm-store /out
 
-FROM node:26.13.0-trixie-slim AS runtime
+FROM node:26.13.1-trixie-slim AS runtime
 LABEL org.opencontainers.image.title="raglab-api" \
       org.opencontainers.image.description="RAGLab REST API (Fastify) and migration runner" \
       org.opencontainers.image.licenses="MIT"

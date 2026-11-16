@@ -5,7 +5,7 @@
 
 # The build output is plain HTML/JS/CSS, so this stage runs on the build host's platform even for
 # multi-platform images (no emulation needed).
-FROM --platform=$BUILDPLATFORM node:26.13.0-trixie-slim AS build
+FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim AS build
 ARG PNPM_VERSION=11.28.9
 ENV CI=true
 RUN npm install -g pnpm@${PNPM_VERSION}
