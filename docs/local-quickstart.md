@@ -75,8 +75,8 @@ pnpm kb:import --source ~/code/my-project --name "My project" --sync   # later: 
 Start with a curated selection (`--include`, `--exclude` or a `.raglabignore` file in the source
 directory): generated API reference pages are large and repetitive and can crowd out the passages
 you actually want to find. Sources are cited as `path:lines` and, for GitHub/GitLab/Bitbucket/
-Codeberg repositories, link to the file at the imported commit. Details: README,
-[Import a directory or repository](../README.md#import-a-directory-or-repository).
+Codeberg repositories, link to the file at the imported commit. Details:
+[ADR 0004 – source import](adr/0004-source-import.md).
 
 Note: the demo dataset is English. How well `nomic-embed-text` retrieves texts in other languages
 (for example German) has not been checked here – try your queries in the **Retrieval Playground**
