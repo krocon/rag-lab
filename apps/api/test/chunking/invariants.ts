@@ -54,7 +54,10 @@ export function expectCodeInvariants(
       );
     }
     if (chunk.overlapChars > 0) {
-      const before = text.slice(text.lastIndexOf('\n', chunk.startOffset - 1) + 1, chunk.startOffset);
+      const before = text.slice(
+        text.lastIndexOf('\n', chunk.startOffset - 1) + 1,
+        chunk.startOffset,
+      );
       expect(before.trim(), `${where}: overlap starts mid-line`).toBe('');
     }
   });

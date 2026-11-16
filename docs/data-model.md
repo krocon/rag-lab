@@ -28,16 +28,16 @@ collections 1 ──── n documents 1 ──── n chunks (inkl. embedding 
 
 ### `collections` – Knowledge Base
 
-| Spalte                     | Typ                    | Hinweise                                                                    |
-| -------------------------- | ---------------------- | --------------------------------------------------------------------------- |
-| `id`                       | `uuid` PK              | `DEFAULT uuidv7()`                                                          |
-| `name`                     | `text` NOT NULL        | 1–120 Zeichen, eindeutig (case-insensitive, Unique-Index auf `lower(name)`) |
-| `description`              | `text` NULL            | max. 2.000 Zeichen                                                          |
-| `embedding_provider`       | `text` NOT NULL        | Provider zum Zeitpunkt der Anlage, z. B. `ollama`                           |
-| `embedding_model`          | `text` NOT NULL        | Modell, mit dem alle Chunks dieser Collection eingebettet sind              |
-| `embedding_dimensions`     | `integer` NOT NULL     | muss zur Spalte `chunks.embedding` passen                                   |
+| Spalte                     | Typ                    | Hinweise                                                                              |
+| -------------------------- | ---------------------- | ------------------------------------------------------------------------------------- |
+| `id`                       | `uuid` PK              | `DEFAULT uuidv7()`                                                                    |
+| `name`                     | `text` NOT NULL        | 1–120 Zeichen, eindeutig (case-insensitive, Unique-Index auf `lower(name)`)           |
+| `description`              | `text` NULL            | max. 2.000 Zeichen                                                                    |
+| `embedding_provider`       | `text` NOT NULL        | Provider zum Zeitpunkt der Anlage, z. B. `ollama`                                     |
+| `embedding_model`          | `text` NOT NULL        | Modell, mit dem alle Chunks dieser Collection eingebettet sind                        |
+| `embedding_dimensions`     | `integer` NOT NULL     | muss zur Spalte `chunks.embedding` passen                                             |
 | `source`                   | `jsonb` NULL           | Import-Quelle (017): `kind`, `url` (ohne Zugangsdaten), `ref`, `commit`, `importedAt` |
-| `created_at`, `updated_at` | `timestamptz` NOT NULL |                                                                             |
+| `created_at`, `updated_at` | `timestamptz` NOT NULL |                                                                                       |
 
 Das Embedding-Modell wird pro Collection festgehalten, damit ein späterer Modellwechsel erkannt
 werden kann (Suche mit anderem Modell als bei der Indexierung ist fachlich falsch → Fehler bzw.
@@ -118,10 +118,10 @@ Indizes:
 
 ## Umsetzung
 
-| Migration                  | Art                       | Inhalt                                                                                                          |
-| -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `0000_enable_pgvector.sql` | Custom (Prompt 001)       | `CREATE EXTENSION IF NOT EXISTS vector`                                                                         |
-| `0001_domain_model.sql`    | generiert (`db:generate`) | Enum `document_status`, Tabellen, FKs (`ON DELETE CASCADE`), Unique-/CHECK-Constraints, alle Indizes inkl. HNSW |
+| Migration                  | Art                       | Inhalt                                                                                                                                      |
+| -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0000_enable_pgvector.sql` | Custom (Prompt 001)       | `CREATE EXTENSION IF NOT EXISTS vector`                                                                                                     |
+| `0001_domain_model.sql`    | generiert (`db:generate`) | Enum `document_status`, Tabellen, FKs (`ON DELETE CASCADE`), Unique-/CHECK-Constraints, alle Indizes inkl. HNSW                             |
 | `0002_source_import.sql`   | generiert (Prompt 017)    | `collections.source` (jsonb), `documents.path` + partieller Unique-Index `(collection_id, path) WHERE path IS NOT NULL` + CHECK Länge 1–512 |
 
 Index- und Constraint-Namen (stabil, werden im Code referenziert):

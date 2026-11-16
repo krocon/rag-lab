@@ -32,7 +32,11 @@ export function embeddingHeader(source: Omit<EmbeddingTextSource, 'content'>): s
   const lines = [`File: ${source.path}`];
   if (source.symbol) {
     lines.push(`Symbol: ${source.symbol}`);
-  } else if (source.headingPath && source.headingPath.length > 0 && source.headingPath[0] !== source.path) {
+  } else if (
+    source.headingPath &&
+    source.headingPath.length > 0 &&
+    source.headingPath[0] !== source.path
+  ) {
     lines.push(`Section: ${source.headingPath.join(' > ')}`);
   }
   const header = lines.join('\n').replace(/[\r\t]/g, ' ');

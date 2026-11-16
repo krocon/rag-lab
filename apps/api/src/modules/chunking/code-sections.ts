@@ -125,7 +125,10 @@ const PYTHON_PATTERNS: DeclarationPattern[] = [
     name: kindAndName,
   },
   // Module-level assignments of constants: `FOO = …`, `foo: int = …`.
-  { pattern: /^(?<name>[A-Z][A-Z0-9_]+)\s*(?::[^=]+)?=/, name: (match) => match.groups?.['name'] ?? null },
+  {
+    pattern: /^(?<name>[A-Z][A-Z0-9_]+)\s*(?::[^=]+)?=/,
+    name: (match) => match.groups?.['name'] ?? null,
+  },
 ];
 
 const MARKUP_TAG_PATTERN: DeclarationPattern = {

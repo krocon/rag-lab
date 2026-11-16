@@ -60,9 +60,26 @@ describe('upload with paths', () => {
     ]);
     expect(response.statusCode).toBe(202);
     const { documents } = response.json<UploadDocumentsResponse>();
-    expect(documents.map(({ filename, path, language, mimeType }) => ({ filename, path, language, mimeType }))).toEqual([
-      { filename: 'tree.ts', path: 'packages/table/src/tree.ts', language: 'typescript', mimeType: 'text/typescript' },
-      { filename: 'guide.md', path: 'docs/guide.md', language: 'markdown', mimeType: 'text/markdown' },
+    expect(
+      documents.map(({ filename, path, language, mimeType }) => ({
+        filename,
+        path,
+        language,
+        mimeType,
+      })),
+    ).toEqual([
+      {
+        filename: 'tree.ts',
+        path: 'packages/table/src/tree.ts',
+        language: 'typescript',
+        mimeType: 'text/typescript',
+      },
+      {
+        filename: 'guide.md',
+        path: 'docs/guide.md',
+        language: 'markdown',
+        mimeType: 'text/markdown',
+      },
       { filename: 'notes.txt', path: null, language: 'text', mimeType: 'text/plain' },
     ]);
   });
@@ -89,7 +106,10 @@ describe('upload with paths', () => {
       expect(response.statusCode).toBe(400);
       expect(errorOf(response).code).toBe('INVALID_PATH');
       expect(response.body).not.toContain('\u0007');
-      const list = await app.inject({ method: 'GET', url: `/api/collections/${collectionId}/documents` });
+      const list = await app.inject({
+        method: 'GET',
+        url: `/api/collections/${collectionId}/documents`,
+      });
       expect(list.json<DocumentListResponse>().total).toBe(0);
     },
   );
@@ -113,7 +133,9 @@ describe('upload with paths', () => {
     expect(twice.statusCode).toBe(409);
     expect(errorOf(twice)).toMatchObject({ code: 'DUPLICATE_PATH', details: { path: 'src/a.ts' } });
 
-    expect((await upload(app, collectionId, file('src/a.ts', 'const a = 1;'))).statusCode).toBe(202);
+    expect((await upload(app, collectionId, file('src/a.ts', 'const a = 1;'))).statusCode).toBe(
+      202,
+    );
     const again = await upload(app, collectionId, file('src/a.ts', 'const a = 3;'));
     expect(again.statusCode).toBe(409);
     expect(errorOf(again)).toMatchObject({
@@ -147,7 +169,10 @@ describe('GET /api/collections/:id/documents – filter and paging', () => {
     ]);
     const list = async (query: string) =>
       (
-        await app.inject({ method: 'GET', url: `/api/collections/${collectionId}/documents${query}` })
+        await app.inject({
+          method: 'GET',
+          url: `/api/collections/${collectionId}/documents${query}`,
+        })
       ).json<DocumentListResponse>();
 
     const all = await list('');
@@ -162,7 +187,10 @@ describe('GET /api/collections/:id/documents – filter and paging', () => {
 
     const filtered = await list('?pathPrefix=packages/table/');
     expect(filtered.total).toBe(2);
-    expect(filtered.items.map((d) => d.path)).toEqual(['packages/table/src/a.ts', 'packages/table/src/b.ts']);
+    expect(filtered.items.map((d) => d.path)).toEqual([
+      'packages/table/src/a.ts',
+      'packages/table/src/b.ts',
+    ]);
 
     // The prefix is literal: `%` and `_` are no wildcards.
     expect((await list('?pathPrefix=docs/%25_')).total).toBe(1);
@@ -170,7 +198,10 @@ describe('GET /api/collections/:id/documents – filter and paging', () => {
 
     const page = await list('?limit=2&offset=1');
     expect(page.total).toBe(5);
-    expect(page.items.map((d) => d.path)).toEqual(['packages/table-utils/x.ts', 'packages/table/src/a.ts']);
+    expect(page.items.map((d) => d.path)).toEqual([
+      'packages/table-utils/x.ts',
+      'packages/table/src/a.ts',
+    ]);
   });
 
   it('validates the query', async () => {

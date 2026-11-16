@@ -120,7 +120,9 @@ describe('buildSourceUrl', () => {
     expect(buildSourceUrl(source('https://github.com/o'), 'x.ts', 1, 2)).toBeNull();
     expect(buildSourceUrl(source('https://github.com/o/r/extra'), 'x.ts', 1, 2)).toBeNull();
     expect(buildSourceUrl(null, 'x.ts', 1, 2)).toBeNull();
-    expect(buildSourceUrl({ ...source('https://github.com/o/r'), commit: 'main' }, 'x', 1, 1)).toBeNull();
+    expect(
+      buildSourceUrl({ ...source('https://github.com/o/r'), commit: 'main' }, 'x', 1, 1),
+    ).toBeNull();
   });
 
   it('parses repository locations', () => {

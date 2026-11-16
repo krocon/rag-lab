@@ -133,7 +133,9 @@ function generateCode(random: () => number): string {
       lines.push('}');
     } else {
       const indent = pick(['  ', '    ', '\t', '      ']);
-      lines.push(`${indent}${pick(['return', 'const', 'this.', 'if (x) {', '}', 'foo.bar();'])} ${name()};`);
+      lines.push(
+        `${indent}${pick(['return', 'const', 'this.', 'if (x) {', '}', 'foo.bar();'])} ${name()};`,
+      );
     }
   }
   return lines.join(pick(['\n', '\n']));

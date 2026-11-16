@@ -288,8 +288,7 @@ export function modelMismatch(error: ApiRequestError): ModelMismatch | undefined
             }
             @for (issue of error.validationIssues; track issue.location) {
               <p>
-                <code>{{ issue.location }}</code
-                >: {{ issue.message }}
+                <code>{{ issue.location }}</code>: {{ issue.message }}
               </p>
             }
             <button type="button" class="rl-btn" (click)="search.reload()">Try again</button>

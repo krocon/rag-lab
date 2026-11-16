@@ -86,7 +86,9 @@ async function waitUntilIndexed(collectionId: string): Promise<DocumentListRespo
     const list = (
       await app.inject({ method: 'GET', url: `/api/collections/${collectionId}/documents` })
     ).json<DocumentListResponse>();
-    if (list.items.every((document) => document.status === 'ready' || document.status === 'failed')) {
+    if (
+      list.items.every((document) => document.status === 'ready' || document.status === 'failed')
+    ) {
       return list;
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -108,8 +110,12 @@ describe('documents with paths (PostgreSQL)', () => {
     // The same path in another collection is fine.
     expect((await upload(other, file('src/a.ts', 'const a = 1;'))).statusCode).toBe(202);
     // Uploads without a path are not affected by the partial index.
-    expect((await upload(collectionId, [{ filename: 'a.md', content: '# A' }])).statusCode).toBe(202);
-    expect((await upload(collectionId, [{ filename: 'a.md', content: '# B' }])).statusCode).toBe(202);
+    expect((await upload(collectionId, [{ filename: 'a.md', content: '# A' }])).statusCode).toBe(
+      202,
+    );
+    expect((await upload(collectionId, [{ filename: 'a.md', content: '# B' }])).statusCode).toBe(
+      202,
+    );
   });
 
   it('filters by literal path prefix and pages in SQL', async () => {
@@ -143,7 +149,10 @@ describe('documents with paths (PostgreSQL)', () => {
     expect((await list('?pathPrefix=docs/100%25')).total).toBe(1);
     const page = await list('?pathPrefix=packages/&limit=2&offset=1');
     expect(page.total).toBe(3);
-    expect(page.items.map((d) => d.path)).toEqual(['packages/table/src/b.ts', 'packages/table_x/x.ts']);
+    expect(page.items.map((d) => d.path)).toEqual([
+      'packages/table/src/b.ts',
+      'packages/table_x/x.ts',
+    ]);
   });
 
   it('rejects paths longer than the check constraint allows before reaching the database', async () => {

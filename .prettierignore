@@ -8,3 +8,5 @@ prompts
 docs/00-bestandsaufnahme.md
 # Test fixtures are byte-exact inputs/expected outputs (golden tests)
 apps/api/test/fixtures
+# Eval datasets are corpus inputs; reformatting would shift chunks and eval baselines
+eval/datasets

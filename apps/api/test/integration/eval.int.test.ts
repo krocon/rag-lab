@@ -113,9 +113,7 @@ describe('code dataset (017): source tree with paths, lexical baseline, PostgreS
     const code = await loadDataset(
       fileURLToPath(new URL('../../../../eval/datasets/code-gridkit', import.meta.url)),
     );
-    expect(code.documents.map((document) => document.filename)).toContain(
-      'src/tree/tree-model.ts',
-    );
+    expect(code.documents.map((document) => document.filename)).toContain('src/tree/tree-model.ts');
     const run = await evaluate(createLexicalEmbeddingProvider(768), 'eval-code', code);
     expect(run.unresolvedAnchors).toEqual([]);
     expect(run.indexing.documents).toBe(code.documents.length);

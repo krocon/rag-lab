@@ -29,6 +29,7 @@ export default tseslint.config(
         FormData: 'readonly',
         Blob: 'readonly',
         TextDecoder: 'readonly',
+        TextEncoder: 'readonly',
         URL: 'readonly',
         AbortSignal: 'readonly',
         Response: 'readonly',
